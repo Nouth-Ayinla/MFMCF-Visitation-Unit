@@ -11,7 +11,12 @@ export const QuickActionsWidget = () => {
   const actions = [
     {
       icon: UserPlus,
-      label: "Register <br /> New Member",
+      label: (
+        <>
+          <div>Register</div>
+          <div className="text-[10px] lowercase">new member</div>
+        </>
+      ),
       onClick: () => setIsAddMemberOpen(true),
       variant: "default" as const,
     },
@@ -46,7 +51,9 @@ export const QuickActionsWidget = () => {
             className="h-auto flex flex-col gap-2 py-4"
           >
             <action.icon className="h-5 w-5" />
-            <span className="text-xs font-medium">{action.label}</span>
+            <div className="text-xs font-medium text-center">
+              {action.label}
+            </div>
           </Button>
         ))}
       </div>
