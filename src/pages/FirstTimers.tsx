@@ -9,15 +9,51 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { UserCheck, UserPlus, Phone, Mail, Calendar, MessageSquare, Send, FileDown, Trash2, Edit, Search, Filter, X } from "lucide-react";
+import {
+  UserCheck,
+  UserPlus,
+  Phone,
+  Mail,
+  Calendar,
+  MessageSquare,
+  Send,
+  FileDown,
+  Trash2,
+  Edit,
+  Search,
+  Filter,
+  X,
+} from "lucide-react";
 import { DeleteMemberDialog } from "@/components/members/DeleteMemberDialog";
 import { EditMemberDialog } from "@/components/members/EditMemberDialog";
-import { formatDistanceToNow, format, getDay, startOfDay, endOfDay } from "date-fns";
-import { generateFirstTimerDoc, ServiceDay, getServiceTypeName } from "@/lib/firstTimerExport";
+import {
+  formatDistanceToNow,
+  format,
+  getDay,
+  startOfDay,
+  endOfDay,
+} from "date-fns";
+import {
+  generateFirstTimerDoc,
+  ServiceDay,
+  getServiceTypeName,
+} from "@/lib/firstTimerExport";
 
 interface FirstTimerMember {
   id: string;
@@ -53,13 +89,25 @@ const FirstTimers = () => {
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [smsMessage, setSmsMessage] = useState("");
   const [smsDialogOpen, setSmsDialogOpen] = useState(false);
-  const [selectedMemberForSms, setSelectedMemberForSms] = useState<{ id: string; first_name: string; last_name: string; phone_number: string | null; full_name?: string } | null>(null);
-  const [exportServiceDay, setExportServiceDay] = useState<ServiceDay>("sunday");
+  const [selectedMemberForSms, setSelectedMemberForSms] = useState<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    phone_number: string | null;
+    full_name?: string;
+  } | null>(null);
+  const [exportServiceDay, setExportServiceDay] =
+    useState<ServiceDay>("sunday");
   const [isExporting, setIsExporting] = useState(false);
-  const [memberToDelete, setMemberToDelete] = useState<{ id: string; full_name: string } | null>(null);
-  const [memberToEdit, setMemberToEdit] = useState<FirstTimerMember | null>(null);
+  const [memberToDelete, setMemberToDelete] = useState<{
+    id: string;
+    full_name: string;
+  } | null>(null);
+  const [memberToEdit, setMemberToEdit] = useState<FirstTimerMember | null>(
+    null
+  );
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  
+
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDepartment, setFilterDepartment] = useState<string>("all");
@@ -97,17 +145,19 @@ const FirstTimers = () => {
     queryFn: async () => {
       let query = supabase
         .from("members")
-        .select(`
+        .select(
+          `
           *,
           attendance(count),
           departments(id, name),
           levels(id, level_number),
           contacted_by_profile:profiles!members_contacted_by_fkey(full_name)
-        `)
+        `
+        )
         .order("registered_at", { ascending: false });
 
       const now = new Date();
-      
+
       // Handle promoted tab differently
       if (selectedTab === "promoted") {
         query = query
@@ -115,9 +165,8 @@ const FirstTimers = () => {
           .not("promoted_to_member_at", "is", null)
           .order("promoted_to_member_at", { ascending: false });
       } else {
-        // For active first-timers tabs, only show those not yet promoted
-        query = query.eq("is_first_timer", true);
-        
+        // For time-based tabs, include members who registered in the period
+        // regardless of whether they've since been promoted to full members.
         if (selectedTab === "this-week") {
           const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
           query = query.gte("registered_at", weekAgo.toISOString());
@@ -136,22 +185,23 @@ const FirstTimers = () => {
   // Apply search and filters to the fetched data
   const filteredFirstTimers = useMemo(() => {
     if (!firstTimers) return [];
-    
+
     return firstTimers.filter((member) => {
       // Search filter
       const searchLower = searchTerm.toLowerCase();
-      const matchesSearch = !searchTerm || 
+      const matchesSearch =
+        !searchTerm ||
         member.full_name.toLowerCase().includes(searchLower) ||
         member.phone_number.toLowerCase().includes(searchLower);
-      
+
       // Department filter
-      const matchesDepartment = filterDepartment === "all" || 
-        member.department_id === filterDepartment;
-      
+      const matchesDepartment =
+        filterDepartment === "all" || member.department_id === filterDepartment;
+
       // Level filter
-      const matchesLevel = filterLevel === "all" || 
-        member.level_id === filterLevel;
-      
+      const matchesLevel =
+        filterLevel === "all" || member.level_id === filterLevel;
+
       return matchesSearch && matchesDepartment && matchesLevel;
     });
   }, [firstTimers, searchTerm, filterDepartment, filterLevel]);
@@ -161,9 +211,9 @@ const FirstTimers = () => {
     mutationFn: async (memberId: string) => {
       const { error } = await supabase
         .from("members")
-        .update({ 
+        .update({
           contacted_at: new Date().toISOString(),
-          contacted_by: user?.id 
+          contacted_by: user?.id,
         })
         .eq("id", memberId);
       if (error) throw error;
@@ -173,10 +223,10 @@ const FirstTimers = () => {
       toast({ title: "Member marked as contacted" });
     },
     onError: (error) => {
-      toast({ 
-        title: "Error", 
-        description: error.message, 
-        variant: "destructive" 
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
       });
     },
   });
@@ -186,9 +236,9 @@ const FirstTimers = () => {
     mutationFn: async (memberId: string) => {
       const { error } = await supabase
         .from("members")
-        .update({ 
+        .update({
           is_first_timer: false,
-          promoted_to_member_at: new Date().toISOString()
+          promoted_to_member_at: new Date().toISOString(),
         })
         .eq("id", memberId);
       if (error) throw error;
@@ -198,17 +248,23 @@ const FirstTimers = () => {
       toast({ title: "Member promoted successfully" });
     },
     onError: (error) => {
-      toast({ 
-        title: "Error", 
-        description: error.message, 
-        variant: "destructive" 
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
       });
     },
   });
 
   // Add follow-up note mutation
   const addNoteMutation = useMutation({
-    mutationFn: async ({ memberId, note }: { memberId: string; note: string }) => {
+    mutationFn: async ({
+      memberId,
+      note,
+    }: {
+      memberId: string;
+      note: string;
+    }) => {
       const { data: member } = await supabase
         .from("members")
         .select("follow_up_notes")
@@ -218,8 +274,8 @@ const FirstTimers = () => {
       const existingNotes = member?.follow_up_notes || "";
       const timestamp = new Date().toLocaleString();
       const newNote = `[${timestamp}]: ${note}`;
-      const updatedNotes = existingNotes 
-        ? `${existingNotes}\n\n${newNote}` 
+      const updatedNotes = existingNotes
+        ? `${existingNotes}\n\n${newNote}`
         : newNote;
 
       const { error } = await supabase
@@ -238,15 +294,19 @@ const FirstTimers = () => {
 
   // Send SMS mutation
   const sendSmsMutation = useMutation({
-    mutationFn: async ({ phoneNumber, message, memberId }: { 
-      phoneNumber: string; 
-      message: string; 
+    mutationFn: async ({
+      phoneNumber,
+      message,
+      memberId,
+    }: {
+      phoneNumber: string;
+      message: string;
       memberId: string;
     }) => {
-      const { data, error } = await supabase.functions.invoke('send-sms', {
-        body: { phoneNumber, message, memberId }
+      const { data, error } = await supabase.functions.invoke("send-sms", {
+        body: { phoneNumber, message, memberId },
       });
-      
+
       if (error) throw error;
       return data;
     },
@@ -255,33 +315,46 @@ const FirstTimers = () => {
       setSmsMessage("");
       setSmsDialogOpen(false);
       setSelectedMemberForSms(null);
-      toast({ 
+      toast({
         title: "SMS sent successfully",
-        description: "The message has been delivered to the first-timer."
+        description: "The message has been delivered to the first-timer.",
       });
     },
-    onError: (error: any) => {
-      // Check if it's a session expired error
-      const isSessionExpired = error.message?.includes('Session expired') || 
-                               error.message?.includes('SESSION_EXPIRED') ||
-                               error.context?.status === 401;
-      
+    onError: (error: unknown) => {
+      const err = error as Record<string, unknown> | undefined;
+      const message =
+        typeof err?.["message"] === "string"
+          ? String(err!["message"])
+          : undefined;
+      const context =
+        (err?.["context"] as Record<string, unknown> | undefined) ?? undefined;
+      const status =
+        context && typeof context["status"] === "number"
+          ? (context["status"] as number)
+          : undefined;
+
+      const isSessionExpired =
+        message?.includes("Session expired") ||
+        message?.includes("SESSION_EXPIRED") ||
+        status === 401;
+
       if (isSessionExpired) {
-        toast({ 
-          title: "Session Expired", 
-          description: "Your session has expired. Please log in again.", 
-          variant: "destructive" 
+        toast({
+          title: "Session Expired",
+          description: "Your session has expired. Please log in again.",
+          variant: "destructive",
         });
-        
+
         // Redirect to login after a short delay
         setTimeout(() => {
-          navigate('/login');
+          navigate("/login");
         }, 2000);
       } else {
-        toast({ 
-          title: "Failed to send SMS", 
-          description: error.message || "Please check your SMS configuration and try again.", 
-          variant: "destructive" 
+        toast({
+          title: "Failed to send SMS",
+          description:
+            message || "Please check your SMS configuration and try again.",
+          variant: "destructive",
         });
       }
     },
@@ -298,7 +371,7 @@ const FirstTimers = () => {
       sendSmsMutation.mutate({
         phoneNumber: selectedMemberForSms.phone_number,
         message: smsMessage,
-        memberId: selectedMemberForSms.id
+        memberId: selectedMemberForSms.id,
       });
     }
   };
@@ -306,16 +379,16 @@ const FirstTimers = () => {
   const openSmsDialog = (member: FirstTimerMember) => {
     setSelectedMemberForSms({
       id: member.id,
-      first_name: member.full_name.split(' ')[0] || '',
-      last_name: member.full_name.split(' ').slice(1).join(' ') || '',
+      first_name: member.full_name.split(" ")[0] || "",
+      last_name: member.full_name.split(" ").slice(1).join(" ") || "",
       phone_number: member.phone_number,
-      full_name: member.full_name
+      full_name: member.full_name,
     });
     setSmsMessage(
       `Hello ${member.full_name}! 👋\n\n` +
-      `Thank you for visiting MFMCf FUTA. We're so glad you joined us! ` +
-      `We'd love to stay connected with you.\n\n` +
-      `God bless you! 🙏`
+        `Thank you for visiting MFMCf FUTA. We're so glad you joined us! ` +
+        `We'd love to stay connected with you.\n\n` +
+        `God bless you! 🙏`
     );
     setSmsDialogOpen(true);
   };
@@ -324,17 +397,17 @@ const FirstTimers = () => {
   const getMostRecentServiceDate = (serviceDay: ServiceDay): Date => {
     const today = new Date();
     const dayOfWeek = getDay(today);
-    
+
     const serviceDayMap: Record<ServiceDay, number> = {
       sunday: 0,
       tuesday: 2,
-      thursday: 4
+      thursday: 4,
     };
-    
+
     const targetDay = serviceDayMap[serviceDay];
     let daysBack = dayOfWeek - targetDay;
     if (daysBack < 0) daysBack += 7;
-    
+
     const serviceDate = new Date(today);
     serviceDate.setDate(today.getDate() - daysBack);
     return serviceDate;
@@ -343,73 +416,86 @@ const FirstTimers = () => {
   // Export first-timers to Word document
   const handleExportToWord = async () => {
     setIsExporting(true);
-    
+
     try {
       const serviceDate = getMostRecentServiceDate(exportServiceDay);
       const startDate = startOfDay(serviceDate);
       const endDate = endOfDay(serviceDate);
-      
+
       // Build query with filters
       let query = supabase
         .from("members")
-        .select(`
+        .select(
+          `
           full_name,
           phone_number,
           department_id,
           level_id,
           departments(name),
           levels(level_number)
-        `)
+        `
+        )
         .eq("is_first_timer", true)
         .gte("registered_at", startDate.toISOString())
         .lte("registered_at", endDate.toISOString())
         .order("full_name");
-      
+
       // Apply department filter
       if (filterDepartment !== "all") {
         query = query.eq("department_id", filterDepartment);
       }
-      
+
       // Apply level filter
       if (filterLevel !== "all") {
         query = query.eq("level_id", filterLevel);
       }
-      
+
       const { data: exportData, error } = await query;
-      
+
       if (error) throw error;
-      
+
       // Apply search filter (client-side)
       let filteredExportData = exportData || [];
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
-        filteredExportData = filteredExportData.filter(member => 
-          member.full_name.toLowerCase().includes(searchLower) ||
-          member.phone_number.toLowerCase().includes(searchLower)
+        filteredExportData = filteredExportData.filter(
+          (member) =>
+            member.full_name.toLowerCase().includes(searchLower) ||
+            member.phone_number.toLowerCase().includes(searchLower)
         );
       }
-      
+
       if (filteredExportData.length === 0) {
         toast({
           title: "No first-timers found",
-          description: `No first-timers match your search/filter criteria for ${format(serviceDate, 'MMMM d, yyyy')} (${getServiceTypeName(exportServiceDay)})`,
-          variant: "destructive"
+          description: `No first-timers match your search/filter criteria for ${format(
+            serviceDate,
+            "MMMM d, yyyy"
+          )} (${getServiceTypeName(exportServiceDay)})`,
+          variant: "destructive",
         });
         setIsExporting(false);
         return;
       }
-      
-      await generateFirstTimerDoc(filteredExportData, exportServiceDay, serviceDate);
-      
+
+      await generateFirstTimerDoc(
+        filteredExportData,
+        exportServiceDay,
+        serviceDate
+      );
+
       toast({
         title: "Export successful",
-        description: `Exported ${filteredExportData.length} first-timers to Word document`
+        description: `Exported ${filteredExportData.length} first-timers to Word document`,
       });
     } catch (error) {
       toast({
         title: "Export failed",
-        description: error instanceof Error ? error.message : "Failed to export first-timers",
-        variant: "destructive"
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to export first-timers",
+        variant: "destructive",
       });
     } finally {
       setIsExporting(false);
@@ -431,10 +517,15 @@ const FirstTimers = () => {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">First-Timers</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">Track and follow up with new visitors</p>
+          <p className="text-muted-foreground text-sm sm:text-base">
+            Track and follow up with new visitors
+          </p>
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <Badge variant="secondary" className="text-sm sm:text-lg px-3 sm:px-4 py-1 sm:py-2">
+          <Badge
+            variant="secondary"
+            className="text-sm sm:text-lg px-3 sm:px-4 py-1 sm:py-2"
+          >
             {filteredFirstTimers?.length || 0} of {firstTimers?.length || 0}
           </Badge>
         </div>
@@ -478,7 +569,10 @@ const FirstTimers = () => {
             {/* Department Filter */}
             <div className="space-y-2">
               <Label htmlFor="department-filter">Department</Label>
-              <Select value={filterDepartment} onValueChange={setFilterDepartment}>
+              <Select
+                value={filterDepartment}
+                onValueChange={setFilterDepartment}
+              >
                 <SelectTrigger id="department-filter">
                   <SelectValue placeholder="All Departments" />
                 </SelectTrigger>
@@ -522,7 +616,11 @@ const FirstTimers = () => {
                   setFilterDepartment("all");
                   setFilterLevel("all");
                 }}
-                disabled={searchTerm === "" && filterDepartment === "all" && filterLevel === "all"}
+                disabled={
+                  searchTerm === "" &&
+                  filterDepartment === "all" &&
+                  filterLevel === "all"
+                }
               >
                 <X className="h-4 w-4 mr-2" />
                 Clear Filters
@@ -543,20 +641,31 @@ const FirstTimers = () => {
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
             <div className="flex items-center gap-2">
-              <Label htmlFor="service-day" className="whitespace-nowrap">Service Day:</Label>
-              <Select value={exportServiceDay} onValueChange={(value) => setExportServiceDay(value as ServiceDay)}>
+              <Label htmlFor="service-day" className="whitespace-nowrap">
+                Service Day:
+              </Label>
+              <Select
+                value={exportServiceDay}
+                onValueChange={(value) =>
+                  setExportServiceDay(value as ServiceDay)
+                }
+              >
                 <SelectTrigger id="service-day" className="w-[180px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="tuesday">Tuesday (Bible Study)</SelectItem>
-                  <SelectItem value="thursday">Thursday (Revival Hour)</SelectItem>
-                  <SelectItem value="sunday">Sunday (Sunday Service)</SelectItem>
+                  <SelectItem value="thursday">
+                    Thursday (Revival Hour)
+                  </SelectItem>
+                  <SelectItem value="sunday">
+                    Sunday (Sunday Service)
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <Button 
-              onClick={handleExportToWord} 
+            <Button
+              onClick={handleExportToWord}
               disabled={isExporting}
               className="w-full sm:w-auto"
             >
@@ -565,7 +674,9 @@ const FirstTimers = () => {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Exports first-timers registered on the most recent {getServiceTypeName(exportServiceDay)} ({format(getMostRecentServiceDate(exportServiceDay), 'MMM d, yyyy')})
+            Exports first-timers registered on the most recent{" "}
+            {getServiceTypeName(exportServiceDay)} (
+            {format(getMostRecentServiceDate(exportServiceDay), "MMM d, yyyy")})
           </p>
         </CardContent>
       </Card>
@@ -583,7 +694,9 @@ const FirstTimers = () => {
             <Card>
               <CardContent className="py-12">
                 <div className="text-center text-muted-foreground">
-                  {searchTerm || filterDepartment !== "all" || filterLevel !== "all" 
+                  {searchTerm ||
+                  filterDepartment !== "all" ||
+                  filterLevel !== "all"
                     ? "No first-timers match your search/filter criteria"
                     : "No first-timers found for this period"}
                 </div>
@@ -594,7 +707,9 @@ const FirstTimers = () => {
               {filteredFirstTimers.map((member) => {
                 const attendanceCount = member.attendance?.[0]?.count || 0;
                 const daysSinceFirstVisit = member.registered_at
-                  ? formatDistanceToNow(new Date(member.registered_at), { addSuffix: true })
+                  ? formatDistanceToNow(new Date(member.registered_at), {
+                      addSuffix: true,
+                    })
                   : "N/A";
 
                 return (
@@ -619,11 +734,15 @@ const FirstTimers = () => {
                             <span>•</span>
                             <span>{member.departments?.name || "No dept"}</span>
                             <span>•</span>
-                            <span>{member.levels?.level_number || "No level"}</span>
+                            <span>
+                              {member.levels?.level_number || "No level"}
+                            </span>
                           </div>
                         </div>
                         <div className="text-right space-y-1">
-                          <Badge variant="secondary">{attendanceCount} visits</Badge>
+                          <Badge variant="secondary">
+                            {attendanceCount} visits
+                          </Badge>
                           <p className="text-xs text-muted-foreground">
                             Registered {daysSinceFirstVisit}
                           </p>
@@ -635,8 +754,9 @@ const FirstTimers = () => {
                       {member.contacted_at && (
                         <div className="text-sm bg-muted p-3 rounded-md">
                           <p className="text-muted-foreground">
-                            Contacted on {new Date(member.contacted_at).toLocaleDateString()}
-                            {member.contacted_by_profile && 
+                            Contacted on{" "}
+                            {new Date(member.contacted_at).toLocaleDateString()}
+                            {member.contacted_by_profile &&
                               ` by ${member.contacted_by_profile.full_name}`}
                           </p>
                         </div>
@@ -655,7 +775,11 @@ const FirstTimers = () => {
                         <div className="text-sm bg-muted p-3 rounded-md">
                           <p className="text-muted-foreground flex items-center gap-2">
                             <Send className="h-3 w-3" />
-                            SMS sent {formatDistanceToNow(new Date(member.last_sms_sent_at), { addSuffix: true })}
+                            SMS sent{" "}
+                            {formatDistanceToNow(
+                              new Date(member.last_sms_sent_at),
+                              { addSuffix: true }
+                            )}
                           </p>
                         </div>
                       )}
@@ -665,7 +789,9 @@ const FirstTimers = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => markContactedMutation.mutate(member.id)}
+                            onClick={() =>
+                              markContactedMutation.mutate(member.id)
+                            }
                             disabled={markContactedMutation.isPending}
                             className="w-full sm:w-auto"
                           >
@@ -712,8 +838,8 @@ const FirstTimers = () => {
 
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="outline"
                               onClick={() => setSelectedMemberId(member.id)}
                               className="w-full sm:w-auto"
@@ -733,7 +859,9 @@ const FirstTimers = () => {
                                   id="note"
                                   placeholder="Enter your follow-up note..."
                                   value={followUpNote}
-                                  onChange={(e) => setFollowUpNote(e.target.value)}
+                                  onChange={(e) =>
+                                    setFollowUpNote(e.target.value)
+                                  }
                                   rows={4}
                                 />
                               </div>
@@ -748,8 +876,14 @@ const FirstTimers = () => {
                                   Cancel
                                 </Button>
                                 <Button
-                                  onClick={() => selectedMemberId && handleAddNote(selectedMemberId)}
-                                  disabled={!followUpNote.trim() || addNoteMutation.isPending}
+                                  onClick={() =>
+                                    selectedMemberId &&
+                                    handleAddNote(selectedMemberId)
+                                  }
+                                  disabled={
+                                    !followUpNote.trim() ||
+                                    addNoteMutation.isPending
+                                  }
                                 >
                                   Add Note
                                 </Button>
@@ -761,7 +895,12 @@ const FirstTimers = () => {
                         <Button
                           size="sm"
                           variant="destructive"
-                          onClick={() => setMemberToDelete({ id: member.id, full_name: member.full_name })}
+                          onClick={() =>
+                            setMemberToDelete({
+                              id: member.id,
+                              full_name: member.full_name,
+                            })
+                          }
                           className="w-full sm:w-auto"
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
@@ -781,14 +920,21 @@ const FirstTimers = () => {
       <Dialog open={smsDialogOpen} onOpenChange={setSmsDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Send SMS to {selectedMemberForSms ? `${selectedMemberForSms.first_name} ${selectedMemberForSms.last_name}` : ''}</DialogTitle>
+            <DialogTitle>
+              Send SMS to{" "}
+              {selectedMemberForSms
+                ? `${selectedMemberForSms.first_name} ${selectedMemberForSms.last_name}`
+                : ""}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <Label htmlFor="phone" className="text-sm text-muted-foreground">
                 Phone Number
               </Label>
-              <p className="font-medium">{selectedMemberForSms?.phone_number}</p>
+              <p className="font-medium">
+                {selectedMemberForSms?.phone_number}
+              </p>
             </div>
             <div>
               <Label htmlFor="sms-message">Message</Label>
