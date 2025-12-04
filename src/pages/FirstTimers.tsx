@@ -735,6 +735,11 @@ const FirstTimers = () => {
                                 Contacted
                               </Badge>
                             )}
+                            {member.promoted_to_member_at && (
+                              <Badge variant="outline" className="text-xs">
+                                Promoted
+                              </Badge>
+                            )}
                           </CardTitle>
                           <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1">
