@@ -14,7 +14,7 @@ export const QuickActionsWidget = () => {
       label: (
         <>
           <div>Register</div>
-          <div className="text-[10px] lowercase">New member</div>
+          <div className="text-[10px] ">New member</div>
         </>
       ),
       onClick: () => setIsAddMemberOpen(true),
@@ -26,7 +26,7 @@ export const QuickActionsWidget = () => {
       label: (
         <>
           <div>Mark</div>
-          <div className="text-[10px] lowercase">attendance</div>
+          <div className="text-[10px] "> Attendance</div>
         </>
       ),
       onClick: () => navigate("/attendance"),
