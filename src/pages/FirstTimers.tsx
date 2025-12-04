@@ -165,14 +165,24 @@ const FirstTimers = () => {
           .not("promoted_to_member_at", "is", null)
           .order("promoted_to_member_at", { ascending: false });
       } else {
-        // For time-based tabs, include members who registered in the period
-        // regardless of whether they've since been promoted to full members.
+        // For time-based and all-time tabs, include anyone who was ever a first-timer
+        // (either still marked as first-timer or promoted_to_member_at is not null).
+        // The promoted tab remains handled above.
         if (selectedTab === "this-week") {
           const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          query = query.gte("registered_at", weekAgo.toISOString());
+          query = query
+            .gte("registered_at", weekAgo.toISOString())
+            .or("is_first_timer.eq.true,promoted_to_member_at.is.not.null");
         } else if (selectedTab === "this-month") {
           const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          query = query.gte("registered_at", monthAgo.toISOString());
+          query = query
+            .gte("registered_at", monthAgo.toISOString())
+            .or("is_first_timer.eq.true,promoted_to_member_at.is.not.null");
+        } else {
+          // All time: anyone who was ever a first-timer
+          query = query.or(
+            "is_first_timer.eq.true,promoted_to_member_at.is.not.null"
+          );
         }
       }
 
