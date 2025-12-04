@@ -172,16 +172,16 @@ const FirstTimers = () => {
           const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
           query = query
             .gte("registered_at", weekAgo.toISOString())
-            .or("is_first_timer.eq.true,promoted_to_member_at.is.not.null");
+            .or("is_first_timer.eq.true,promoted_to_member_at.not.is.null");
         } else if (selectedTab === "this-month") {
           const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
           query = query
             .gte("registered_at", monthAgo.toISOString())
-            .or("is_first_timer.eq.true,promoted_to_member_at.is.not.null");
+            .or("is_first_timer.eq.true,promoted_to_member_at.not.is.null");
         } else {
           // All time: anyone who was ever a first-timer
           query = query.or(
-            "is_first_timer.eq.true,promoted_to_member_at.is.not.null"
+            "is_first_timer.eq.true,promoted_to_member_at.not.is.null"
           );
         }
       }
