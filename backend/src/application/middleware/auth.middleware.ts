@@ -66,3 +66,44 @@ export const authenticateToken = (
         }
     }
 };
+
+export const requireRoles = (allowedRoles: string[]) => {
+    return (req: Request, res: Response, next: NextFunction): void => {
+        try {
+            if (!req.user) {
+                throw new AuthenticationError('User not authenticated');
+            }
+
+            if (!allowedRoles.includes(req.user.role)) {
+                res.status(403).json({
+                    success: false,
+                    error: {
+                        code: 'FORBIDDEN',
+                        message: 'Insufficient permissions',
+                    },
+                });
+                return;
+            }
+
+            next();
+        } catch (error) {
+            if (error instanceof AuthenticationError) {
+                res.status(401).json({
+                    success: false,
+                    error: {
+                        code: 'UNAUTHORIZED',
+                        message: error.message,
+                    },
+                });
+            } else {
+                res.status(500).json({
+                    success: false,
+                    error: {
+                        code: 'INTERNAL_ERROR',
+                        message: 'Authorization failed',
+                    },
+                });
+            }
+        }
+    };
+};

@@ -19,6 +19,21 @@ export class UserRepository implements IUserRepository {
     return this.mapToEntity(user);
   }
 
+  async findAll(filters?: { role?: string; isApproved?: boolean }): Promise<User[]> {
+    const query: Record<string, unknown> = {};
+
+    if (filters?.role) {
+      query.role = filters.role;
+    }
+
+    if (filters?.isApproved !== undefined) {
+      query.isApproved = filters.isApproved;
+    }
+
+    const users = await UserModel.find(query).sort({ createdAt: -1 }).lean();
+    return users.map(user => this.mapToEntity(user));
+  }
+
   async create(userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
     const user = await UserModel.create(userData);
     

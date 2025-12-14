@@ -61,6 +61,11 @@ export class MemberRepository implements IMemberRepository {
     return members.map(member => this.mapToEntity(member));
   }
 
+  async delete(id: string): Promise<boolean> {
+    const result = await MemberModel.findByIdAndDelete(id);
+    return result !== null;
+  }
+
   private mapToEntity(doc: Record<string, unknown> & { _id: { toString(): string } }): Member {
     return {
       id: doc._id.toString(),

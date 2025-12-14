@@ -10,7 +10,7 @@ type UserRole =
   | 'admin'
   | 'user';
 
-export const authorize = (...allowedRoles: UserRole[]) =. {
+export const authorize = (...allowedRoles: UserRole[]) => {
     return (req: Request, res: Response, next: NextFunction): void => {
         try {
             if (!req.user) {
@@ -42,5 +42,5 @@ export const authorize = (...allowedRoles: UserRole[]) =. {
                 });
             }
         }
-    }
-}
+    };
+};

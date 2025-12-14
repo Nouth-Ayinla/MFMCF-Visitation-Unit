@@ -63,6 +63,42 @@ const swaggerDefinition: SwaggerDefinition = {
       name: 'Members',
       description: 'Church member registration and management',
     },
+    {
+      name: 'Organization',
+      description: 'Departments and levels management',
+    },
+    {
+      name: 'Attendance',
+      description: 'Attendance tracking and statistics',
+    },
+    {
+      name: 'User Management',
+      description: 'User administration and access control',
+    },
+    {
+      name: 'Dashboard',
+      description: 'Dashboard statistics and analytics',
+    },
+    {
+      name: 'Birthdays',
+      description: 'Birthday management and SMS notifications',
+    },
+    {
+      name: 'SMS',
+      description: 'SMS messaging service',
+    },
+    {
+      name: 'Reports',
+      description: 'Comprehensive reporting and analytics',
+    },
+    {
+      name: 'Settings',
+      description: 'System settings management',
+    },
+    {
+      name: 'Activity Logs',
+      description: 'User activity tracking and audit logs',
+    },
   ],
 };
 

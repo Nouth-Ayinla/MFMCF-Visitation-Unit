@@ -10,4 +10,5 @@ export interface IMemberRepository {
     departmentId?: string;
     levelId?: string;
   }): Promise<Member[]>;
+  delete(id: string): Promise<boolean>;
 }
