@@ -1,0 +1,10 @@
+project_id = "zveihiugclvkuvjnzhiq"
+
+[functions.send-sms]
+verify_jwt = true
+
+[functions.send-birthday-sms]
+verify_jwt = true
+
+[functions.register-member]
+verify_jwt = false
