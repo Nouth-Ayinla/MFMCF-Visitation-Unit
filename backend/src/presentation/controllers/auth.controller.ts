@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { RegisterUserUseCase } from '@domain/use-cases/RegisterUser';
 import { LoginUserUseCase } from '@domain/use-cases/LoginUser';
 import { RefreshTokenUseCase } from '@domain/use-cases/RefreshToken';
@@ -19,14 +20,50 @@ export class AuthController {
 
       const user = await registerUserUseCase.execute(email, password, fullName);
 
+      // Generate tokens for the newly registered user
+      const accessToken = jwt.sign(
+        { userId: user._id, email: user.email, role: user.role },
+        process.env.JWT_SECRET as string,
+        { expiresIn: '7d' }
+      );
+
+      const refreshToken = jwt.sign(
+        { userId: user._id },
+        process.env.JWT_REFRESH_SECRET as string,
+        { expiresIn: '30d' }
+      );
+
+      // Set tokens in HTTP-only cookies
+      const isProduction = process.env.NODE_ENV === 'production';
+      res.cookie('accessToken', accessToken, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? 'strict' : 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        path: '/',
+      });
+
+      res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? 'strict' : 'lax',
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        path: '/api/v1/auth/refresh',
+      });
+
       res.status(201).json({
         success: true,
         message: 'Registration successful. Awaiting approval.',
         data: {
-          userId: user.id,
-          email: user.email,
-          fullName: user.fullName,
-          isApproved: user.isApproved,
+          user: {
+            id: user._id,
+            email: user.email,
+            fullName: user.fullName,
+            role: user.role,
+            isApproved: user.isApproved,
+          },
+          accessToken,
+          refreshToken,
         },
       });
     } catch (error) {
@@ -46,17 +83,19 @@ export class AuthController {
       const result = await loginUserUseCase.execute(email, password);
 
       // Set tokens in HTTP-only cookies
+      const isProduction = process.env.NODE_ENV === 'production';
       res.cookie('accessToken', result.accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProduction,
+        sameSite: isProduction ? 'strict' : 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        path: '/',
       });
 
       res.cookie('refreshToken', result.refreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProduction,
+        sameSite: isProduction ? 'strict' : 'lax',
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         path: '/api/v1/auth/refresh',
       });
@@ -64,7 +103,15 @@ export class AuthController {
       res.status(200).json({
         success: true,
         data: {
-          user: result.user,
+          user: {
+            id: result.user._id,
+            email: result.user.email,
+            fullName: result.user.fullName,
+            role: result.user.role,
+            isApproved: result.user.isApproved,
+          },
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
         },
       });
     } catch (error) {
@@ -93,11 +140,13 @@ export class AuthController {
       const accessToken = await refreshTokenUseCase.execute(refreshToken);
 
       // Set new access token
+      const isProduction = process.env.NODE_ENV === 'production';
       res.cookie('accessToken', accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProduction,
+        sameSite: isProduction ? 'strict' : 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/',
       });
 
       res.status(200).json({
@@ -117,7 +166,7 @@ export class AuthController {
   async logout(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       // Clear cookies
-      res.clearCookie('accessToken');
+      res.clearCookie('accessToken', { path: '/' });
       res.clearCookie('refreshToken', { path: '/api/v1/auth/refresh' });
 
       res.status(200).json({
@@ -146,7 +195,7 @@ export class AuthController {
       res.status(200).json({
         success: true,
         data: {
-          id: user.id,
+          id: user._id,
           email: user.email,
           fullName: user.fullName,
           role: user.role,

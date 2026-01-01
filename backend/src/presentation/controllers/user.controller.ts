@@ -74,7 +74,7 @@ export class UserManagementController {
       res.status(200).json({
         message: 'User approved successfully',
         user: {
-          id: user.id,
+          id: user._id,
           email: user.email,
           fullName: user.fullName,
           role: user.role,
@@ -101,7 +101,7 @@ export class UserManagementController {
       res.status(200).json({
         message: 'User role updated successfully',
         user: {
-          id: user.id,
+          id: user._id,
           email: user.email,
           fullName: user.fullName,
           role: user.role,
@@ -123,7 +123,7 @@ export class UserManagementController {
       res.status(200).json({
         message: 'User access revoked successfully',
         user: {
-          id: user.id,
+          id: user._id,
           email: user.email,
           fullName: user.fullName,
           isApproved: user.isApproved,

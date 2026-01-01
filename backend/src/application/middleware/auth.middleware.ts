@@ -23,10 +23,21 @@ export const authenticateToken = (
     next: NextFunction
 ): void => {
     try {
+        console.log('🍪 Cookies received:', req.cookies);
+        console.log('🔑 Access token:', req.cookies?.accessToken ? 'Present' : 'Missing');
+        
         const token = req.cookies?.accessToken;
 
         if (!token) {
-            throw new AuthenticationError('Access token required');
+            console.log('❌ No access token in cookies');
+            res.status(401).json({
+                success: false,
+                error: {
+                    code: 'UNAUTHORIZED',
+                    message: 'Access token required',
+                },
+            });
+            return;
         }
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
@@ -43,26 +54,29 @@ export const authenticateToken = (
             res.status(401).json({
                 success: false,
                 error: {
-                code: 'INVALID_TOKEN',
-                message: 'Invalid or expired token',
+                    code: 'INVALID_TOKEN',
+                    message: 'Invalid or expired token',
                 },
             });
+            return;
         } else if (error instanceof AuthenticationError) {
             res.status(401).json({
                 success: false,
                 error: {
-                code: 'UNAUTHORIZED',
-                message: error.message,
+                    code: 'UNAUTHORIZED',
+                    message: error.message,
                 },
             });
+            return;
         } else {
             res.status(500).json({
                 success: false,
                 error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Authentication failed',
+                    code: 'INTERNAL_ERROR',
+                    message: 'Authentication failed',
                 },
             });
+            return;
         }
     }
 };

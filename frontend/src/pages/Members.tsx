@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Download, Search, Eye, Edit, UserPlus, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { membersApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { MemberDetailsDialog } from "@/components/members/MemberDetailsDialog";
@@ -18,20 +18,17 @@ import mfmLogo from "@/assets/mfm-logo.png";
 
 interface Member {
   id: string;
-  full_name: string;
-  phone_number: string;
+  fullName: string;
+  phoneNumber: string;
   address: string | null;
-  date_of_birth: string;
+  dateOfBirth: string;
   gender: string | null;
-  level_id: string | null;
-  department_id: string | null;
-  department_other: string | null;
-  how_did_you_hear: string | null;
-  is_first_timer: boolean;
-  promoted_to_member_at: string | null;
-  registered_at: string;
-  departments?: { name: string; id: string } | null;
-  levels?: { level_number: string; id: string } | null;
+  levelId: string | null;
+  departmentId: string | null;
+  membershipStatus: 'active' | 'inactive' | 'transferred';
+  isFirstTimer?: boolean;
+  joinDate?: string;
+  createdAt?: string;
 }
 
 const Members = () => {
@@ -58,25 +55,6 @@ const Members = () => {
   useEffect(() => {
     if (user) {
       loadMembers();
-      
-      const channel = supabase
-        .channel('members-changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'members'
-          },
-          () => {
-            loadMembers();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
     }
   }, [user]);
 
@@ -86,23 +64,23 @@ const Members = () => {
 
   const loadMembers = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from("members")
-      .select(`
-        *,
-        departments (id, name),
-        levels (id, level_number)
-      `)
-      .order("registered_at", { ascending: false });
-
-    if (error) {
+    try {
+      const response = await membersApi.getAll({ limit: 1000 });
+      if (response.success && Array.isArray(response.data)) {
+        setMembers(response.data as Member[]);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to load members",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
       toast({
         title: "Error",
         description: "Failed to load members",
         variant: "destructive",
       });
-    } else {
-      setMembers(data || []);
     }
     setIsLoading(false);
   };
@@ -113,20 +91,14 @@ const Members = () => {
     if (searchTerm) {
       filtered = filtered.filter(
         (member) =>
-          member.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          member.phone_number.includes(searchTerm) ||
-          member.departments?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          member.department_other?.toLowerCase().includes(searchTerm.toLowerCase())
+          member.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          member.phoneNumber.includes(searchTerm)
       );
-    }
-
-    if (levelFilter !== "all") {
-      filtered = filtered.filter((member) => member.levels?.level_number === levelFilter);
     }
 
     if (memberTypeFilter !== "all") {
       filtered = filtered.filter((member) => 
-        memberTypeFilter === "first-timer" ? member.is_first_timer : !member.is_first_timer
+        memberTypeFilter === "first-timer" ? member.isFirstTimer : !member.isFirstTimer
       );
     }
 
@@ -134,26 +106,21 @@ const Members = () => {
   };
 
   const handlePromoteToMember = async (memberId: string) => {
-    const { error } = await supabase
-      .from("members")
-      .update({
-        is_first_timer: false,
-        promoted_to_member_at: new Date().toISOString(),
-      })
-      .eq("id", memberId);
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to promote member",
-        variant: "destructive",
+    try {
+      await membersApi.update(memberId, {
+        isFirstTimer: false,
       });
-    } else {
       toast({
         title: "Success",
         description: "Member promoted successfully",
       });
       loadMembers();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to promote member",
+        variant: "destructive",
+      });
     }
   };
 
@@ -182,20 +149,20 @@ const Members = () => {
       ...filteredData.map((member) => {
         // Format birth date as MM-DD (without year)
         let formattedBirthDate = "";
-        if (member.date_of_birth) {
-          const date = new Date(member.date_of_birth);
+        if (member.dateOfBirth) {
+          const date = new Date(member.dateOfBirth);
           const month = String(date.getMonth() + 1).padStart(2, '0');
           const day = String(date.getDate()).padStart(2, '0');
           formattedBirthDate = `${month}-${day}`;
         }
 
         return [
-          member.full_name,
-          member.phone_number,
+          member.fullName,
+          member.phoneNumber,
           formattedBirthDate,
           member.gender || "",
-          member.levels?.level_number || "",
-          member.departments?.name || member.department_other || "",
+          "",
+          "",
           member.address || "",
         ]
           .map((field) => `"${field}"`)
@@ -428,15 +395,15 @@ const Members = () => {
                   ) : (
                     filteredData.map((member) => (
                       <TableRow key={member.id}>
-                        <TableCell className="font-medium">{member.full_name}</TableCell>
-                        <TableCell>{member.phone_number}</TableCell>
-                        <TableCell>{member.departments?.name || member.department_other || "-"}</TableCell>
-                        <TableCell>{member.levels?.level_number || "-"}</TableCell>
+                        <TableCell className="font-medium">{member.fullName}</TableCell>
+                        <TableCell>{member.phoneNumber}</TableCell>
+                        <TableCell>-</TableCell>
+                        <TableCell>-</TableCell>
                         <TableCell>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
-                            member.is_first_timer ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            member.isFirstTimer ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                           }`}>
-                            {member.is_first_timer ? 'First-Timer' : 'Member'}
+                            {member.isFirstTimer ? 'First-Timer' : 'Member'}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -452,7 +419,7 @@ const Members = () => {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            {(canManageAllMembers() || !member.is_first_timer) && (
+                            {(canManageAllMembers() || !member.isFirstTimer) && (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -465,7 +432,7 @@ const Members = () => {
                                 <Edit className="h-4 w-4" />
                               </Button>
                             )}
-                            {member.is_first_timer && canManageAllMembers() && (
+                            {member.isFirstTimer && canManageAllMembers() && (
                               <Button
                                 variant="ghost"
                                 size="icon"

@@ -12,6 +12,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import heroBackground from "@/assets/fellowship-background.jpg";
 import mfmLogo from "@/assets/mfm-logo.png";
+// TODO: Replace Supabase with backend API - import { membersApi } from "@/lib/api";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 import { User, GraduationCap } from "lucide-react";

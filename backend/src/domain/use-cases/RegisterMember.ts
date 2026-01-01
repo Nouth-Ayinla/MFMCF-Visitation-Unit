@@ -46,7 +46,7 @@ export class RegisterMemberUseCase {
     });
 
     return {
-      id: member.id,
+      id: member._id,
       fullName: member.fullName,
       phoneNumber: member.phoneNumber,
       isFirstTimer: member.isFirstTimer,

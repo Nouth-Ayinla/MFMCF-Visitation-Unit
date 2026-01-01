@@ -12,7 +12,7 @@ export class LoginUserUseCase {
     accessToken: string;
     refreshToken: string;
     user: {
-      id: string;
+      _id: string;
       email: string;
       fullName: string;
       role: string;
@@ -34,13 +34,13 @@ export class LoginUserUseCase {
     }
 
     const accessToken = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
+      { userId: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET as string,
       { expiresIn: '7d' } as jwt.SignOptions
     );
 
     const refreshToken = jwt.sign(
-      { userId: user.id },
+      { userId: user._id },
       process.env.JWT_REFRESH_SECRET as string,
       { expiresIn: '30d' } as jwt.SignOptions
     );
@@ -49,7 +49,7 @@ export class LoginUserUseCase {
       accessToken,
       refreshToken,
       user: {
-        id: user.id,
+        _id: user._id,
         email: user.email,
         fullName: user.fullName,
         role: user.role,

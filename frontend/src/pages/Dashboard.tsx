@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, UserCheck, Calendar, TrendingUp, ArrowUpRight, Clock, LayoutDashboard, Cake } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { dashboardApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -86,89 +86,46 @@ const Dashboard = () => {
   };
 
   const loadStats = async () => {
-    const { data: members } = await supabase
-      .from("members")
-      .select("id, is_first_timer");
-
-    const totalMembers = members?.filter(m => !m.is_first_timer).length || 0;
-    const totalFirstTimers = members?.filter(m => m.is_first_timer).length || 0;
-
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
-    const { data: attendanceData } = await supabase
-      .from("attendance")
-      .select("id")
-      .gte("attendance_date", startOfMonth.toISOString().split('T')[0]);
-
-    const totalAttendanceThisMonth = attendanceData?.length || 0;
-    const attendanceRate = totalMembers > 0 ? Math.round((totalAttendanceThisMonth / totalMembers) * 100) : 0;
-
-    setStats({
-      totalMembers,
-      totalFirstTimers,
-      totalAttendanceThisMonth,
-      attendanceRate,
-    });
+    try {
+      const response = await dashboardApi.getStats();
+      if (response.success && response.data) {
+        setStats({
+          totalMembers: response.data.activeMembers + response.data.inactiveMembers,
+          totalFirstTimers: response.data.firstTimers,
+          totalAttendanceThisMonth: response.data.monthAttendance,
+          attendanceRate: response.data.totalMembers > 0 
+            ? Math.round((response.data.monthAttendance / response.data.totalMembers) * 100) 
+            : 0,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
   };
 
   const loadAttendanceTrend = async () => {
+    // TODO: Implement attendance trend API endpoint
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const date = subDays(new Date(), 6 - i);
-      return format(startOfDay(date), 'yyyy-MM-dd');
+      return format(startOfDay(date), 'MMM dd');
     });
 
-    const { data } = await supabase
-      .from("attendance")
-      .select("attendance_date")
-      .gte("attendance_date", last7Days[0])
-      .lte("attendance_date", last7Days[6]);
-
     const trendData = last7Days.map(date => ({
-      date: format(new Date(date), 'MMM dd'),
-      count: data?.filter(a => a.attendance_date === date).length || 0,
+      date,
+      count: 0,
     }));
 
     setAttendanceTrend(trendData);
   };
 
   const loadLevelDistribution = async () => {
-    const { data: members } = await supabase
-      .from("members")
-      .select("level_id, levels(level_number)")
-      .eq("is_first_timer", false);
-
-    const distribution: { [key: string]: number } = {};
-    members?.forEach(member => {
-      const memberLevels = member.levels as { level_number: string } | null;
-      const level = memberLevels?.level_number || 'Unknown';
-      distribution[level] = (distribution[level] || 0) + 1;
-    });
-
-    const distData = Object.entries(distribution).map(([level, count]) => ({
-      level: level === 'Unknown' ? 'Unknown' : `${level} Level`,
-      count,
-    }));
-
-    setLevelDistribution(distData);
+    // TODO: Implement level distribution API endpoint
+    setLevelDistribution([]);
   };
 
   const loadRecentActivity = async () => {
-    const { data: recentMembers } = await supabase
-      .from("members")
-      .select("id, full_name, registered_at, is_first_timer")
-      .order("registered_at", { ascending: false })
-      .limit(5);
-
-    const activities: RecentActivity[] = recentMembers?.map(m => ({
-      id: m.id,
-      type: m.is_first_timer ? "New First-Timer" : "New Member",
-      name: m.full_name,
-      timestamp: m.registered_at,
-    })) || [];
-
-    setRecentActivity(activities);
+    // TODO: Implement recent activity API endpoint
+    setRecentActivity([]);
   };
 
   if (loading || isLoading) {

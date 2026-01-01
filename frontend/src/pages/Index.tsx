@@ -12,7 +12,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import heroBackground from "@/assets/fellowship-background.jpg";
 import mfmLogo from "@/assets/mfm-logo.png";
-import { supabase } from "@/integrations/supabase/client";
+import { departmentsApi, levelsApi, membersApi } from "@/lib/api";
 import { z } from "zod";
 import { User, GraduationCap } from "lucide-react";
 import { SuccessDialog } from "@/components/SuccessDialog";
@@ -24,7 +24,7 @@ interface Department {
 
 interface Level {
   id: string;
-  level_number: string;
+  levelNumber: string;
 }
 
 const registrationSchema = z.object({
@@ -89,18 +89,21 @@ const Index = () => {
 
   useEffect(() => {
     const loadDepartmentsAndLevels = async () => {
-      const { data: deptData } = await supabase
-        .from("departments")
-        .select("id, name")
-        .order("name");
+      try {
+        const [deptResponse, levelResponse] = await Promise.all([
+          departmentsApi.getAll(),
+          levelsApi.getAll()
+        ]);
 
-      const { data: levelData } = await supabase
-        .from("levels")
-        .select("id, level_number")
-        .order("level_number");
-
-      if (deptData) setDepartments(deptData);
-      if (levelData) setLevels(levelData);
+        if (deptResponse.success && Array.isArray(deptResponse.data)) {
+          setDepartments(deptResponse.data);
+        }
+        if (levelResponse.success && Array.isArray(levelResponse.data)) {
+          setLevels(levelResponse.data);
+        }
+      } catch (error) {
+        console.error('Error loading departments and levels:', error);
+      }
     };
 
     loadDepartmentsAndLevels();
@@ -136,67 +139,76 @@ const Index = () => {
       fullName: formData.fullName.trim(),
       phoneNumber: formData.phoneNumber
         ? formData.phoneNumber.trim().replace(/\s+/g, "")
-        : null,
-      address: formData.address.trim() || null,
+        : undefined,
+      address: formData.address.trim() || undefined,
       dateOfBirth: dateOfBirth,
-      gender: formData.gender || null,
+      gender: formData.gender || undefined,
       levelId: formData.levelId,
-      departmentId: formData.departmentId,
-      departmentOther: formData.departmentOther.trim() || null,
-      howDidYouHear: formData.howDidYouHear.trim() || null,
+      departmentId: formData.departmentId === "other" ? undefined : formData.departmentId,
       isFirstTimer: true,
     };
 
-    // Register via edge function (handles department creation and member insertion)
-    const { data, error } = await supabase.functions.invoke('register-member', {
-      body: sanitizedData,
-    });
+    try {
+      // Register member via backend API
+      const response = await membersApi.create(sanitizedData);
+
+      if (response.success) {
+        // Show success dialog
+        setShowSuccessDialog(true);
+
+        // Reload departments to include any newly created ones
+        const deptResponse = await departmentsApi.getAll();
+        if (deptResponse.success && Array.isArray(deptResponse.data)) {
+          setDepartments(deptResponse.data);
+        }
+
+        // Reset form
+        setFormData({
+          fullName: "",
+          phoneNumber: "",
+          address: "",
+          birthMonth: "",
+          birthDay: "",
+          gender: "",
+          levelId: "",
+          departmentId: "",
+          departmentOther: "",
+          howDidYouHear: "",
+        });
+        setShowOtherDepartment(false);
+      } else {
+        const errorMessage = response.message || 'An error occurred';
+        
+        // Check for duplicate phone number
+        if (errorMessage.includes('already registered') || errorMessage.includes('duplicate')) {
+          toast({
+            title: "Already Registered",
+            description: "This phone number has already been registered.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Submission Failed",
+            description: errorMessage,
+            variant: "destructive",
+          });
+        }
+      }
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "string"
+          ? error
+          : "There was an error submitting your registration. Please try again.";
+      toast({
+        title: "Submission Failed",
+        description: message,
+        variant: "destructive",
+      });
+    }
 
     setIsSubmitting(false);
-
-    if (error || data?.error) {
-      const errorMessage = error?.message || data?.error || 'An error occurred';
-      
-      // Check for duplicate phone number
-      if (errorMessage.includes('already registered') || data?.error?.includes('already registered')) {
-        toast({
-          title: "Already Registered",
-          description: "This phone number has already been registered.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Submission Failed",
-          description: "There was an error submitting your registration. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } else {
-      // Show success dialog
-      setShowSuccessDialog(true);
-
-      // Reload departments to include any newly created ones
-      const { data: deptData } = await supabase
-        .from("departments")
-        .select("id, name")
-        .order("name");
-      if (deptData) setDepartments(deptData);
-
-      // Reset form
-      setFormData({
-        fullName: "",
-        phoneNumber: "",
-        address: "",
-        birthMonth: "",
-        birthDay: "",
-        gender: "",
-        levelId: "",
-        departmentId: "",
-        departmentOther: "",
-        howDidYouHear: "",
-      });
-      setShowOtherDepartment(false);
-    }
   };
 
   return (
@@ -447,7 +459,7 @@ const Index = () => {
                 <SelectContent className="bg-background border border-muted-foreground/20">
                   {levels.map((level) => (
                     <SelectItem key={level.id} value={level.id}>
-                      {level.level_number}
+                      {level.levelNumber}
                     </SelectItem>
                   ))}
                 </SelectContent>

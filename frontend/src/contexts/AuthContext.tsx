@@ -1,12 +1,16 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { User, Session, AuthError } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { authApi, User as ApiUser } from "@/lib/api";
 
 type AppRole = 'visitation_coordinator' | 'assistant_coordinator' | 'president' | 'central' | 'level_coordinator' | 'admin' | 'user';
 
+interface User {
+  id: string;
+  email: string;
+  fullName: string;
+}
+
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
   userRole: AppRole | null;
   isApproved: boolean | null;
   loading: boolean;
@@ -19,8 +23,8 @@ interface AuthContextType {
   canManageAllMembers: () => boolean;
   canMarkAttendance: () => boolean;
   isPendingApproval: () => boolean;
-  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -28,86 +32,45 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<AppRole | null>(null);
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        // Handle token refresh failures
-        if (event === 'TOKEN_REFRESHED' && !session) {
-          // Token refresh failed, clear state
-          setSession(null);
-          setUser(null);
-          setUserRole(null);
-          setIsApproved(null);
-          return;
-        }
-
-        // Handle sign out
-        if (event === 'SIGNED_OUT') {
-          setSession(null);
-          setUser(null);
-          setUserRole(null);
-          setIsApproved(null);
-          return;
-        }
-
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        // Fetch role and approval status when user changes
-        if (session?.user) {
-          setTimeout(() => {
-            fetchUserData(session.user.id);
-          }, 0);
+    // Check for existing session on mount
+    const initAuth = async () => {
+      try {
+        const response = await authApi.getCurrentUser();
+        console.log('🔍 Session check response:', response);
+        if (response.success && response.data) {
+          const userData = response.data;
+          setUser({
+            id: userData.id,
+            email: userData.email,
+            fullName: userData.fullName,
+          });
+          setUserRole(userData.role as AppRole);
+          setIsApproved(userData.isApproved);
+          console.log('✅ Session restored:', userData.email);
         } else {
+          console.log('⚠️ No active session found');
+          setUser(null);
           setUserRole(null);
           setIsApproved(null);
         }
-      }
-    );
-
-    // Check for existing session with error handling
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        // Invalid session, clear everything
-        console.error('Session error:', error);
-        supabase.auth.signOut();
-        setSession(null);
+      } catch (error) {
+        console.error('❌ Session error:', error);
+        // Clear session data if authentication fails
         setUser(null);
         setUserRole(null);
         setIsApproved(null);
-      } else {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          fetchUserData(session.user.id);
-        }
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    };
 
-    return () => subscription.unsubscribe();
+    initAuth();
   }, []);
-
-  const fetchUserData = async (userId: string) => {
-    // Fetch role and profile in parallel to avoid race condition
-    const [roleResult, profileResult] = await Promise.all([
-      supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
-      supabase.from("profiles").select("*").eq("id", userId).maybeSingle()
-    ]);
-    
-    const role = roleResult.data?.role as AppRole || null;
-    const approved = (profileResult.data as any)?.is_approved ?? false;
-    
-    // Set both states together to prevent race condition
-    setUserRole(role);
-    setIsApproved(approved);
-  };
 
   // Role checking functions
   const isSuperAdmin = () => userRole === 'visitation_coordinator';
@@ -126,40 +89,69 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const isPendingApproval = () => isApproved === false;
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+    try {
+      console.log('🔐 Attempting login...');
+      const response = await authApi.signIn({ email, password });
+      console.log('📨 Login response:', response);
+      if (response.success && response.data) {
+        const userData = response.data.user;
+        setUser({
+          id: userData.id,
+          email: userData.email,
+          fullName: userData.fullName,
+        });
+        setUserRole(userData.role as AppRole);
+        setIsApproved(userData.isApproved);
+        console.log('✅ Login successful:', userData.email, 'Role:', userData.role);
+        return { error: null };
+      }
+      return { error: new Error(response.message || 'Login failed') };
+    } catch (error) {
+      console.error('❌ Login error:', error);
+      return { error: error as Error };
+    }
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          full_name: fullName,
-        }
+    try {
+      console.log('📝 Attempting signup...');
+      const response = await authApi.signUp({ email, password, fullName });
+      console.log('📨 Signup response:', response);
+      if (response.success && response.data) {
+        const userData = response.data.user;
+        setUser({
+          id: userData.id,
+          email: userData.email,
+          fullName: userData.fullName,
+        });
+        setUserRole(userData.role as AppRole);
+        setIsApproved(userData.isApproved);
+        console.log('✅ Signup successful:', userData.email, 'Approved:', userData.isApproved);
+        return { error: null };
       }
-    });
-    return { error };
+      return { error: new Error(response.message || 'Sign up failed') };
+    } catch (error) {
+      console.error('❌ Signup error:', error);
+      return { error: error as Error };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setUserRole(null);
-    setIsApproved(null);
+    try {
+      await authApi.signOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
+    } finally {
+      setUser(null);
+      setUserRole(null);
+      setIsApproved(null);
+    }
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        session,
         userRole,
         isApproved,
         loading,

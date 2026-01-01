@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { usersApi } from "@/lib/api";
+import { UserDetails } from "@/lib/api/users";
 import { useAuth } from "@/contexts/AuthContext";
 import { Check, X, Loader2, UserPlus, Clock, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -21,14 +22,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-interface PendingUser {
-  id: string;
-  email: string;
-  full_name: string | null;
-  created_at: string;
-  is_approved: boolean;
-}
-
 interface PendingApprovalsListProps {
   onApprovalChange?: () => void;
 }
@@ -36,7 +29,7 @@ interface PendingApprovalsListProps {
 export const PendingApprovalsList = ({ onApprovalChange }: PendingApprovalsListProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+  const [pendingUsers, setPendingUsers] = useState<UserDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<Record<string, string>>({});
@@ -46,47 +39,21 @@ export const PendingApprovalsList = ({ onApprovalChange }: PendingApprovalsListP
 
   useEffect(() => {
     loadPendingUsers();
-
-    // Subscribe to real-time updates
-    const channel = supabase
-      .channel('pending-approvals')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'profiles',
-          filter: 'is_approved=eq.false'
-        },
-        () => {
-          loadPendingUsers();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
   const loadPendingUsers = async () => {
     setLoading(true);
     
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("is_approved", false)
-      .order("created_at", { ascending: false });
-
-    if (error) {
+    try {
+      const response = await usersApi.getAll({ isApproved: false });
+      setPendingUsers(response.users || []);
+    } catch (error) {
       console.error("Error loading pending users:", error);
       toast({
         title: "Error",
         description: "Failed to load pending users",
         variant: "destructive",
       });
-    } else {
-      setPendingUsers(data || []);
     }
     
     setLoading(false);
@@ -97,35 +64,12 @@ export const PendingApprovalsList = ({ onApprovalChange }: PendingApprovalsListP
     const selectedRole = selectedRoles[userId] || "user";
 
     try {
-      // Update approval status
-      const { error: approvalError } = await supabase
-        .from("profiles")
-        .update({
-          is_approved: true,
-          approved_by: user?.id,
-          approved_at: new Date().toISOString(),
-        } as any)
-        .eq("id", userId);
+      // Approve user
+      await usersApi.approve(userId);
 
-      if (approvalError) throw approvalError;
-
-      // Assign role if selected
-      if (selectedRole) {
-        // First delete any existing role
-        await supabase
-          .from("user_roles")
-          .delete()
-          .eq("user_id", userId);
-
-        // Insert new role
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert({
-            user_id: userId,
-            role: selectedRole as "visitation_coordinator" | "assistant_coordinator" | "president" | "central" | "level_coordinator" | "admin" | "user"
-          });
-
-        if (roleError) throw roleError;
+      // Update role if selected
+      if (selectedRole && selectedRole !== "user") {
+        await usersApi.updateRole(userId, { role: selectedRole });
       }
 
       toast({
@@ -135,11 +79,12 @@ export const PendingApprovalsList = ({ onApprovalChange }: PendingApprovalsListP
 
       loadPendingUsers();
       onApprovalChange?.();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Approval error:", error);
+      const message = error instanceof Error ? error.message : "Failed to approve user";
       toast({
         title: "Error",
-        description: error.message || "Failed to approve user",
+        description: message,
         variant: "destructive",
       });
     }
@@ -151,13 +96,7 @@ export const PendingApprovalsList = ({ onApprovalChange }: PendingApprovalsListP
     setProcessingId(userId);
 
     try {
-      // Delete the profile (will cascade to auth.users if set up, or just remove access)
-      const { error } = await supabase
-        .from("profiles")
-        .delete()
-        .eq("id", userId);
-
-      if (error) throw error;
+      await usersApi.revokeAccess(userId);
 
       toast({
         title: "User Rejected",
@@ -166,11 +105,12 @@ export const PendingApprovalsList = ({ onApprovalChange }: PendingApprovalsListP
 
       loadPendingUsers();
       onApprovalChange?.();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Rejection error:", error);
+      const message = error instanceof Error ? error.message : "Failed to reject user";
       toast({
         title: "Error",
-        description: error.message || "Failed to reject user",
+        description: message,
         variant: "destructive",
       });
     }
@@ -194,7 +134,7 @@ export const PendingApprovalsList = ({ onApprovalChange }: PendingApprovalsListP
     if (selectedUsers.size === pendingUsers.length) {
       setSelectedUsers(new Set());
     } else {
-      setSelectedUsers(new Set(pendingUsers.map(u => u.id)));
+      setSelectedUsers(new Set(pendingUsers.map(u => u._id)));
     }
   };
 
@@ -207,32 +147,14 @@ export const PendingApprovalsList = ({ onApprovalChange }: PendingApprovalsListP
 
     for (const userId of selectedUsers) {
       try {
-        // Update approval status
-        const { error: approvalError } = await supabase
-          .from("profiles")
-          .update({
-            is_approved: true,
-            approved_by: user?.id,
-            approved_at: new Date().toISOString(),
-          } as any)
-          .eq("id", userId);
-
-        if (approvalError) throw approvalError;
+        // Approve user
+        await usersApi.approve(userId);
 
         // Assign role
-        await supabase
-          .from("user_roles")
-          .delete()
-          .eq("user_id", userId);
+        if (bulkRole && bulkRole !== "user") {
+          await usersApi.updateRole(userId, { role: bulkRole });
+        }
 
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert({
-            user_id: userId,
-            role: bulkRole as "visitation_coordinator" | "assistant_coordinator" | "president" | "central" | "level_coordinator" | "admin" | "user"
-          });
-
-        if (roleError) throw roleError;
         successCount++;
       } catch (error) {
         console.error("Bulk approval error for user:", userId, error);
@@ -352,25 +274,25 @@ export const PendingApprovalsList = ({ onApprovalChange }: PendingApprovalsListP
         )}
         
         {pendingUsers.map((pendingUser) => {
-          const isProcessing = processingId === pendingUser.id;
+          const isProcessing = processingId === pendingUser._id;
 
           return (
             <div
-              key={pendingUser.id}
+              key={pendingUser._id}
               className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg transition-colors ${
-                selectedUsers.has(pendingUser.id) ? "bg-primary/5 border-primary/30" : "bg-card"
+                selectedUsers.has(pendingUser._id) ? "bg-primary/5 border-primary/30" : "bg-card"
               }`}
             >
               <div className="flex items-start gap-3">
                 <Checkbox
-                  checked={selectedUsers.has(pendingUser.id)}
-                  onCheckedChange={() => toggleSelectUser(pendingUser.id)}
+                  checked={selectedUsers.has(pendingUser._id)}
+                  onCheckedChange={() => toggleSelectUser(pendingUser._id)}
                   disabled={isProcessing || isBulkProcessing}
                   className="mt-1"
                 />
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{pendingUser.full_name || "No name"}</span>
+                    <span className="font-medium">{pendingUser.fullName || "No name"}</span>
                   <Badge variant="outline" className="text-xs">
                     <Clock className="h-3 w-3 mr-1" />
                     Pending
@@ -378,16 +300,16 @@ export const PendingApprovalsList = ({ onApprovalChange }: PendingApprovalsListP
                 </div>
                 <p className="text-sm text-muted-foreground">{pendingUser.email}</p>
                   <p className="text-xs text-muted-foreground">
-                    Signed up: {format(new Date(pendingUser.created_at), "MMM d, yyyy 'at' h:mm a")}
+                    Signed up: {format(new Date(pendingUser.createdAt), "MMM d, yyyy 'at' h:mm a")}
                   </p>
                 </div>
               </div>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:ml-auto">
                 <Select
-                  value={selectedRoles[pendingUser.id] || "user"}
+                  value={selectedRoles[pendingUser._id] || "user"}
                   onValueChange={(value) => 
-                    setSelectedRoles(prev => ({ ...prev, [pendingUser.id]: value }))
+                    setSelectedRoles(prev => ({ ...prev, [pendingUser._id]: value }))
                   }
                   disabled={isProcessing || isBulkProcessing}
                 >
@@ -406,7 +328,7 @@ export const PendingApprovalsList = ({ onApprovalChange }: PendingApprovalsListP
                 <div className="flex gap-2">
                   <Button
                     size="sm"
-                    onClick={() => approveUser(pendingUser.id)}
+                    onClick={() => approveUser(pendingUser._id)}
                     disabled={isProcessing || isBulkProcessing}
                     className="flex-1 sm:flex-none"
                   >
@@ -443,7 +365,7 @@ export const PendingApprovalsList = ({ onApprovalChange }: PendingApprovalsListP
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
-                          onClick={() => rejectUser(pendingUser.id, pendingUser.email)}
+                          onClick={() => rejectUser(pendingUser._id, pendingUser.email)}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
                           Reject User
