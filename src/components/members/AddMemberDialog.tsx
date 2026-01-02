@@ -145,7 +145,8 @@ export function AddMemberDialog({
         | unknown;
       const message =
         errObj && typeof errObj === "object" && "message" in errObj
-          ? (errObj as any).message
+          ? (errObj as { message?: string; details?: string; hint?: string })
+              .message
           : error instanceof Error
           ? error.message
           : JSON.stringify(errObj);
