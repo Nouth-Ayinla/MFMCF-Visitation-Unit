@@ -74,7 +74,9 @@ const Birthdays = () => {
     setIsLoading(true);
     const { data, error } = await supabase
       .from("members")
-      .select("id, full_name, date_of_birth, phone_number")
+      .select(
+        "id, full_name, date_of_birth, phone_number, levels (level_number)",
+      )
       .not("date_of_birth", "is", null)
       .order("date_of_birth");
 
@@ -95,6 +97,7 @@ const Birthdays = () => {
         full_name: member.full_name,
         date_of_birth: member.date_of_birth!,
         phone_number: member.phone_number,
+        level_number: (member as any).levels?.level_number ?? null,
         daysUntil: getDaysUntilBirthday(member.date_of_birth!),
       })) || [];
 
@@ -180,14 +183,26 @@ const Birthdays = () => {
       21,
     );
 
+    const sortByLevel = (arr: BirthdayMember[]) =>
+      [...arr].sort((a, b) => {
+        const lvlA = parseInt(a.level_number || "", 10);
+        const lvlB = parseInt(b.level_number || "", 10);
+        if (!isNaN(lvlA) && !isNaN(lvlB)) return lvlB - lvlA;
+        if (!isNaN(lvlA)) return -1;
+        if (!isNaN(lvlB)) return 1;
+        return 0;
+      });
+
     if (selectedMonth !== "All Months") {
-      // Single month — flat table
+      // Single month — flat table sorted by level
+      const sorted = sortByLevel(filteredMembers);
       autoTable(doc, {
         startY: 27,
-        head: [["#", "Full Name", "Birthday", "Phone Number"]],
-        body: filteredMembers.map((m, i) => [
+        head: [["#", "Full Name", "Level", "Birthday", "Phone Number"]],
+        body: sorted.map((m, i) => [
           i + 1,
           m.full_name,
+          m.level_number || "-",
           formatBirthday(m.date_of_birth),
           m.phone_number || "-",
         ]),
@@ -200,7 +215,8 @@ const Birthdays = () => {
         alternateRowStyles: { fillColor: [245, 240, 250] },
         columnStyles: {
           0: { halign: "center", cellWidth: 12 },
-          2: { halign: "center", cellWidth: 28 },
+          2: { halign: "center", cellWidth: 18 },
+          3: { halign: "center", cellWidth: 26 },
         },
         margin: { left: 14, right: 14 },
       });
@@ -230,10 +246,11 @@ const Birthdays = () => {
 
         autoTable(doc, {
           startY: currentY,
-          head: [["#", "Full Name", "Birthday", "Phone Number"]],
-          body: monthMembers.map((m, i) => [
+          head: [["#", "Full Name", "Level", "Birthday", "Phone Number"]],
+          body: sortByLevel(monthMembers).map((m, i) => [
             i + 1,
             m.full_name,
+            m.level_number || "-",
             formatBirthday(m.date_of_birth),
             m.phone_number || "-",
           ]),
@@ -246,7 +263,8 @@ const Birthdays = () => {
           alternateRowStyles: { fillColor: [245, 240, 250] },
           columnStyles: {
             0: { halign: "center", cellWidth: 12 },
-            2: { halign: "center", cellWidth: 28 },
+            2: { halign: "center", cellWidth: 18 },
+            3: { halign: "center", cellWidth: 26 },
           },
           margin: { left: 14, right: 14 },
         });

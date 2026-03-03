@@ -5,6 +5,7 @@ export interface BirthdayMember {
   full_name: string;
   date_of_birth: string; // MM-DD format
   phone_number: string | null;
+  level_number: string | null;
   daysUntil: number;
 }
 
