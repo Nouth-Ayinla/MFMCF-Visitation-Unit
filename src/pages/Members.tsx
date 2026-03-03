@@ -162,6 +162,18 @@ const Members = () => {
       );
     }
 
+    // Sort by level descending (500 first), UABS/non-numeric/no-level members at the end
+    filtered.sort((a, b) => {
+      const lvlA = parseInt(a.levels?.level_number || "", 10);
+      const lvlB = parseInt(b.levels?.level_number || "", 10);
+      const aValid = !isNaN(lvlA);
+      const bValid = !isNaN(lvlB);
+      if (aValid && bValid) return lvlB - lvlA;
+      if (aValid) return -1;
+      if (bValid) return 1;
+      return 0;
+    });
+
     setFilteredData(filtered);
   };
 
@@ -260,8 +272,8 @@ const Members = () => {
       },
       alternateRowStyles: { fillColor: [245, 240, 250] },
       columnStyles: {
-        0: { halign: "center", cellWidth: 8 },
-        3: { halign: "center", cellWidth: 18 },
+        0: { halign: "center", cellWidth: 14 },
+        3: { halign: "center", cellWidth: 20 },
         4: { halign: "center", cellWidth: 16 },
         5: { halign: "center", cellWidth: 14 },
       },
@@ -517,6 +529,7 @@ const Members = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10 text-center">#</TableHead>
                       <TableHead className="min-w-[150px]">Full Name</TableHead>
                       <TableHead className="min-w-[120px]">Phone</TableHead>
                       <TableHead className="min-w-[120px]">
@@ -534,15 +547,18 @@ const Members = () => {
                     {filteredData.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={7}
+                          colSpan={8}
                           className="text-center text-muted-foreground py-8"
                         >
                           No members found
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredData.map((member) => (
+                      filteredData.map((member, index) => (
                         <TableRow key={member.id}>
+                          <TableCell className="text-center text-muted-foreground text-xs w-10">
+                            {index + 1}
+                          </TableCell>
                           <TableCell className="font-medium">
                             {member.full_name}
                           </TableCell>
