@@ -18,6 +18,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Download, Search, Eye, Edit, UserPlus, Trash2 } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -187,7 +189,7 @@ const Members = () => {
     }
   };
 
-  const exportToCSV = () => {
+  const exportToPDF = () => {
     if (filteredData.length === 0) {
       toast({
         title: "No Data",
@@ -197,58 +199,84 @@ const Members = () => {
       return;
     }
 
-    const headers = [
-      "Full Name",
-      "Phone Number",
-      "Date of Birth",
-      "Gender",
-      "Level",
-      "Department",
-      "Address",
-    ];
+    const doc = new jsPDF({ orientation: "landscape" });
 
-    const csvContent = [
-      headers.join(","),
-      ...filteredData.map((member) => {
-        // Format birth date as MM-DD (without year)
-        let formattedBirthDate = "";
-        if (member.date_of_birth) {
-          const date = new Date(member.date_of_birth);
-          const month = String(date.getMonth() + 1).padStart(2, "0");
-          const day = String(date.getDate()).padStart(2, "0");
-          formattedBirthDate = `${month}-${day}`;
-        }
+    const genderLabel =
+      genderFilter !== "all" ? ` — ${genderFilter} Members` : " — All Members";
+    const dateStr = new Date().toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
 
-        return [
-          member.full_name,
-          member.phone_number,
-          formattedBirthDate,
-          member.gender || "",
-          member.levels?.level_number || "",
-          member.departments?.name || member.department_other || "",
-          member.address || "",
-        ]
-          .map((field) => `"${field}"`)
-          .join(",");
-      }),
-    ].join("\n");
+    // Title
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text(`MFMCF FUTA Chapter — Member List${genderLabel}`, 14, 15);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Generated: ${dateStr}   Total: ${filteredData.length}`, 14, 21);
 
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    const genderSuffix = genderFilter !== "all" ? `_${genderFilter}` : "";
-    a.download = `mfm-members${genderSuffix}_${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    const rows = filteredData.map((member, index) => {
+      let formattedBirthDate = "";
+      if (member.date_of_birth) {
+        const date = new Date(member.date_of_birth);
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        formattedBirthDate = `${month}-${day}`;
+      }
+      return [
+        index + 1,
+        member.full_name,
+        member.phone_number,
+        formattedBirthDate,
+        member.gender || "-",
+        member.levels?.level_number || "-",
+        member.departments?.name || member.department_other || "-",
+        member.address || "-",
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 26,
+      head: [
+        [
+          "#",
+          "Full Name",
+          "Phone Number",
+          "Date of Birth",
+          "Gender",
+          "Level",
+          "Department",
+          "Address",
+        ],
+      ],
+      body: rows,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: {
+        fillColor: [137, 32, 172],
+        textColor: 255,
+        fontStyle: "bold",
+      },
+      alternateRowStyles: { fillColor: [245, 240, 250] },
+      columnStyles: {
+        0: { halign: "center", cellWidth: 8 },
+        3: { halign: "center", cellWidth: 18 },
+        4: { halign: "center", cellWidth: 16 },
+        5: { halign: "center", cellWidth: 14 },
+      },
+      margin: { left: 14, right: 14 },
+    });
+
+    const genderSuffix =
+      genderFilter !== "all" ? `_${genderFilter.toLowerCase()}` : "";
+    doc.save(
+      `mfm-members${genderSuffix}_${new Date().toISOString().split("T")[0]}.pdf`,
+    );
 
     toast({
       title: "Success",
-      description:
-        `Exported ${filteredData.length} ${genderFilter !== "all" ? genderFilter.toLowerCase() : ""} member${filteredData.length !== 1 ? "s" : ""}`.replace(
-          "  ",
-          " ",
-        ),
+      description: `Exported ${filteredData.length} ${genderFilter !== "all" ? genderFilter.toLowerCase() + " " : ""}member${filteredData.length !== 1 ? "s" : ""} to PDF`,
     });
   };
 
@@ -354,7 +382,7 @@ const Members = () => {
                     <span className="sm:hidden">Add</span>
                   </Button>
                   <Button
-                    onClick={exportToCSV}
+                    onClick={exportToPDF}
                     variant="outline"
                     size="sm"
                     className="w-full xs:w-auto text-xs sm:text-sm"
@@ -362,8 +390,8 @@ const Members = () => {
                     <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                     <span className="hidden sm:inline">
                       {genderFilter !== "all"
-                        ? `Export ${genderFilter}s to CSV`
-                        : "Export to CSV"}
+                        ? `Export ${genderFilter}s to PDF`
+                        : "Export to PDF"}
                     </span>
                     <span className="sm:hidden">Export</span>
                   </Button>
