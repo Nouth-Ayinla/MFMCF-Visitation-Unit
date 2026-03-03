@@ -1,9 +1,21 @@
 import { useState, useEffect } from "react";
-import { Cake, Gift, Send, Search, Filter, Calendar, PartyPopper, Users } from "lucide-react";
+import {
+  Cake,
+  Gift,
+  Send,
+  Search,
+  Filter,
+  Calendar,
+  PartyPopper,
+  Users,
+  Download,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   Select,
   SelectContent,
@@ -23,8 +35,18 @@ import {
 
 const MONTHS = [
   "All Months",
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 const Birthdays = () => {
@@ -33,7 +55,6 @@ const Birthdays = () => {
   const [filteredMembers, setFilteredMembers] = useState<BirthdayMember[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("All Months");
-  const [sendingTo, setSendingTo] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Stats
@@ -68,13 +89,14 @@ const Birthdays = () => {
       return;
     }
 
-    const birthdayMembers: BirthdayMember[] = data?.map((member) => ({
-      id: member.id,
-      full_name: member.full_name,
-      date_of_birth: member.date_of_birth!,
-      phone_number: member.phone_number,
-      daysUntil: getDaysUntilBirthday(member.date_of_birth!),
-    })) || [];
+    const birthdayMembers: BirthdayMember[] =
+      data?.map((member) => ({
+        id: member.id,
+        full_name: member.full_name,
+        date_of_birth: member.date_of_birth!,
+        phone_number: member.phone_number,
+        daysUntil: getDaysUntilBirthday(member.date_of_birth!),
+      })) || [];
 
     // Sort by upcoming birthday
     birthdayMembers.sort((a, b) => a.daysUntil - b.daysUntil);
@@ -113,7 +135,7 @@ const Birthdays = () => {
     // Filter by search query
     if (searchQuery) {
       filtered = filtered.filter((member) =>
-        member.full_name.toLowerCase().includes(searchQuery.toLowerCase())
+        member.full_name.toLowerCase().includes(searchQuery.toLowerCase()),
       );
     }
 
@@ -128,7 +150,132 @@ const Birthdays = () => {
     setFilteredMembers(filtered);
   };
 
-  const sendBirthdayWish = async (member: BirthdayMember) => {
+  const exportBirthdaysPDF = () => {
+    if (filteredMembers.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No birthdays to export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const doc = new jsPDF({ orientation: "portrait" });
+    const monthLabel =
+      selectedMonth === "All Months" ? "All Months" : selectedMonth;
+    const dateStr = new Date().toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text(`MFMCF FUTA Chapter — Birthdays (${monthLabel})`, 14, 15);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      `Generated: ${dateStr}   Total: ${filteredMembers.length}`,
+      14,
+      21,
+    );
+
+    if (selectedMonth !== "All Months") {
+      // Single month — flat table
+      autoTable(doc, {
+        startY: 27,
+        head: [["#", "Full Name", "Birthday", "Phone Number"]],
+        body: filteredMembers.map((m, i) => [
+          i + 1,
+          m.full_name,
+          formatBirthday(m.date_of_birth),
+          m.phone_number || "-",
+        ]),
+        styles: { fontSize: 9, cellPadding: 2.5 },
+        headStyles: {
+          fillColor: [137, 32, 172],
+          textColor: 255,
+          fontStyle: "bold",
+        },
+        alternateRowStyles: { fillColor: [245, 240, 250] },
+        columnStyles: {
+          0: { halign: "center", cellWidth: 12 },
+          2: { halign: "center", cellWidth: 28 },
+        },
+        margin: { left: 14, right: 14 },
+      });
+    } else {
+      // All months — grouped by month
+      let currentY = 27;
+
+      MONTHS.slice(1).forEach((month) => {
+        const monthIndex = MONTHS.indexOf(month) - 1;
+        const monthMembers = filteredMembers.filter(
+          (m) => getMonthFromBirthday(m.date_of_birth) === monthIndex,
+        );
+        if (monthMembers.length === 0) return;
+
+        // Month heading
+        if (currentY > 250) {
+          doc.addPage();
+          currentY = 15;
+        }
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(137, 32, 172);
+        doc.text(`${month} (${monthMembers.length})`, 14, currentY);
+        doc.setTextColor(0, 0, 0);
+        doc.setFont("helvetica", "normal");
+        currentY += 3;
+
+        autoTable(doc, {
+          startY: currentY,
+          head: [["#", "Full Name", "Birthday", "Phone Number"]],
+          body: monthMembers.map((m, i) => [
+            i + 1,
+            m.full_name,
+            formatBirthday(m.date_of_birth),
+            m.phone_number || "-",
+          ]),
+          styles: { fontSize: 8.5, cellPadding: 2 },
+          headStyles: {
+            fillColor: [137, 32, 172],
+            textColor: 255,
+            fontStyle: "bold",
+          },
+          alternateRowStyles: { fillColor: [245, 240, 250] },
+          columnStyles: {
+            0: { halign: "center", cellWidth: 12 },
+            2: { halign: "center", cellWidth: 28 },
+          },
+          margin: { left: 14, right: 14 },
+        });
+
+        currentY = (doc as any).lastAutoTable.finalY + 8;
+      });
+    }
+
+    const fileSuffix =
+      selectedMonth === "All Months"
+        ? "all-months"
+        : selectedMonth.toLowerCase();
+    doc.save(
+      `mfmcf-birthdays_${fileSuffix}_${new Date().toISOString().split("T")[0]}.pdf`,
+    );
+    toast({
+      title: "Success",
+      description: `Exported ${filteredMembers.length} birthday${filteredMembers.length !== 1 ? "s" : ""} to PDF`,
+    });
+  };
+
+  const formatWhatsAppNumber = (phone: string) => {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.startsWith("0")) return "234" + digits.slice(1);
+    if (digits.startsWith("234")) return digits;
+    return "234" + digits;
+  };
+
+  const sendBirthdayWish = (member: BirthdayMember) => {
     if (!member.phone_number) {
       toast({
         title: "No phone number",
@@ -137,33 +284,9 @@ const Birthdays = () => {
       });
       return;
     }
-
-    setSendingTo(member.id);
-
-    try {
-      const { error } = await supabase.functions.invoke("send-birthday-sms", {
-        body: {
-          phone_number: member.phone_number,
-          member_name: member.full_name,
-        },
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Birthday wish sent!",
-        description: `SMS sent to ${member.full_name}`,
-      });
-    } catch (error) {
-      console.error("Error sending birthday SMS:", error);
-      toast({
-        title: "Failed to send",
-        description: "Could not send birthday wish. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setSendingTo(null);
-    }
+    const message = `Happy Birthday ${member.full_name}! 🎉🎂 Wishing you a wonderful day filled with joy and God's blessings. With love, MFMCF FUTA Chapter.`;
+    const url = `https://wa.me/${formatWhatsAppNumber(member.phone_number)}?text=${encodeURIComponent(message)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -245,6 +368,17 @@ const Birthdays = () => {
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={exportBirthdaysPDF}
+                disabled={filteredMembers.length === 0}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {selectedMonth === "All Months"
+                  ? "Export All to PDF"
+                  : `Export ${selectedMonth} to PDF`}
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -285,7 +419,8 @@ const Birthdays = () => {
               <div className="space-y-2">
                 {filteredMembers.map((member) => {
                   const isToday = isBirthdayToday(member.date_of_birth);
-                  const isThisWeek = member.daysUntil <= 7 && member.daysUntil > 0;
+                  const isThisWeek =
+                    member.daysUntil <= 7 && member.daysUntil > 0;
 
                   return (
                     <div
@@ -294,16 +429,14 @@ const Birthdays = () => {
                         isToday
                           ? "bg-primary/10 border-primary/20"
                           : isThisWeek
-                          ? "bg-accent/50 border-accent"
-                          : "hover:bg-accent/30"
+                            ? "bg-accent/50 border-accent"
+                            : "hover:bg-accent/30"
                       }`}
                     >
                       <div className="flex items-center gap-4">
                         <div
                           className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                            isToday
-                              ? "bg-primary/20"
-                              : "bg-muted"
+                            isToday ? "bg-primary/20" : "bg-muted"
                           }`}
                         >
                           {isToday ? (
@@ -330,8 +463,8 @@ const Birthdays = () => {
                             {member.daysUntil === 0
                               ? "Today"
                               : member.daysUntil === 1
-                              ? "Tomorrow"
-                              : `in ${member.daysUntil} days`}
+                                ? "Tomorrow"
+                                : `in ${member.daysUntil} days`}
                           </Badge>
                         )}
 
@@ -339,11 +472,16 @@ const Birthdays = () => {
                           <Button
                             size="sm"
                             variant={isToday ? "default" : "outline"}
+                            className={
+                              isToday
+                                ? "bg-green-600 hover:bg-green-700"
+                                : "border-green-600 text-green-600 hover:bg-green-50"
+                            }
                             onClick={() => sendBirthdayWish(member)}
-                            disabled={sendingTo === member.id || !member.phone_number}
+                            disabled={!member.phone_number}
                           >
-                            <Send className="h-4 w-4 mr-1" />
-                            {sendingTo === member.id ? "Sending..." : "Send Wish"}
+                            <MessageCircle className="h-4 w-4 mr-1" />
+                            WhatsApp Wish
                           </Button>
                         )}
                       </div>

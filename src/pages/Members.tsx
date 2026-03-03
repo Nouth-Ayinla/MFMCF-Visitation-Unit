@@ -87,6 +87,8 @@ const Members = () => {
   );
   const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false);
   const [whatsappMessage, setWhatsappMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [sentCount, setSentCount] = useState(0);
 
   const toggleSelectMember = (id: string) => {
     setSelectedMemberIds((prev) => {
@@ -123,6 +125,30 @@ const Members = () => {
   );
   const isAllSelected =
     filteredData.length > 0 && selectedMemberIds.size === filteredData.length;
+
+  const sendToAll = async () => {
+    if (selectedMembers.length === 0) return;
+    setIsSending(true);
+    setSentCount(0);
+    for (let i = 0; i < selectedMembers.length; i++) {
+      const member = selectedMembers[i];
+      const url = `https://wa.me/${formatWhatsAppNumber(member.phone_number)}${
+        whatsappMessage ? `?text=${encodeURIComponent(whatsappMessage)}` : ""
+      }`;
+      window.open(url, "_blank", "noopener,noreferrer");
+      setSentCount(i + 1);
+      if (i < selectedMembers.length - 1) {
+        await new Promise((res) => setTimeout(res, 700));
+      }
+    }
+    setIsSending(false);
+    toast({
+      title: "Done",
+      description: `Opened WhatsApp chats for ${selectedMembers.length} member${
+        selectedMembers.length !== 1 ? "s" : ""
+      }`,
+    });
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -880,12 +906,32 @@ const Members = () => {
               </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              {isSending && (
+                <p className="text-sm text-muted-foreground flex-1 text-center sm:text-left">
+                  Opening chat {sentCount} of {selectedMembers.length}...
+                </p>
+              )}
               <Button
                 variant="outline"
                 onClick={() => setWhatsappDialogOpen(false)}
+                disabled={isSending}
               >
                 Close
+              </Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={sendToAll}
+                disabled={
+                  isSending ||
+                  selectedMembers.length === 0 ||
+                  !whatsappMessage.trim()
+                }
+              >
+                <MessageCircle className="h-4 w-4 mr-2" />
+                {isSending
+                  ? `Sending ${sentCount}/${selectedMembers.length}...`
+                  : `Send to All (${selectedMembers.length})`}
               </Button>
             </DialogFooter>
           </DialogContent>
