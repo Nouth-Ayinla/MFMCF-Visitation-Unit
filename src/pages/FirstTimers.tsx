@@ -51,6 +51,7 @@ import {
 } from "date-fns";
 import {
   generateFirstTimerDoc,
+  generateAllFirstTimersDoc,
   ServiceDay,
   getServiceTypeName,
 } from "@/lib/firstTimerExport";
@@ -99,12 +100,13 @@ const FirstTimers = () => {
   const [exportServiceDay, setExportServiceDay] =
     useState<ServiceDay>("sunday");
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingAll, setIsExportingAll] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<{
     id: string;
     full_name: string;
   } | null>(null);
   const [memberToEdit, setMemberToEdit] = useState<FirstTimerMember | null>(
-    null
+    null,
   );
   const [editDialogOpen, setEditDialogOpen] = useState(false);
 
@@ -152,7 +154,7 @@ const FirstTimers = () => {
           departments(id, name),
           levels(id, level_number),
           contacted_by_profile:profiles!members_contacted_by_fkey(full_name)
-        `
+        `,
         )
         .order("registered_at", { ascending: false });
 
@@ -181,7 +183,7 @@ const FirstTimers = () => {
         } else {
           // All time: anyone who was ever a first-timer
           query = query.or(
-            "is_first_timer.eq.true,promoted_to_member_at.not.is.null"
+            "is_first_timer.eq.true,promoted_to_member_at.not.is.null",
           );
         }
       }
@@ -398,7 +400,7 @@ const FirstTimers = () => {
       `Hello ${member.full_name}! 👋\n\n` +
         `Thank you for visiting MFMCf FUTA. We're so glad you joined us! ` +
         `We'd love to stay connected with you.\n\n` +
-        `God bless you! 🙏`
+        `God bless you! 🙏`,
     );
     setSmsDialogOpen(true);
   };
@@ -443,7 +445,7 @@ const FirstTimers = () => {
           level_id,
           departments(name),
           levels(level_number)
-        `
+        `,
         )
         .eq("is_first_timer", true)
         .gte("registered_at", startDate.toISOString())
@@ -471,7 +473,7 @@ const FirstTimers = () => {
         filteredExportData = filteredExportData.filter(
           (member) =>
             member.full_name.toLowerCase().includes(searchLower) ||
-            member.phone_number.toLowerCase().includes(searchLower)
+            member.phone_number.toLowerCase().includes(searchLower),
         );
       }
 
@@ -480,7 +482,7 @@ const FirstTimers = () => {
           title: "No first-timers found",
           description: `No first-timers match your search/filter criteria for ${format(
             serviceDate,
-            "MMMM d, yyyy"
+            "MMMM d, yyyy",
           )} (${getServiceTypeName(exportServiceDay)})`,
           variant: "destructive",
         });
@@ -491,7 +493,7 @@ const FirstTimers = () => {
       await generateFirstTimerDoc(
         filteredExportData,
         exportServiceDay,
-        serviceDate
+        serviceDate,
       );
 
       toast({
@@ -509,6 +511,42 @@ const FirstTimers = () => {
       });
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  // Export all first-timers to Word document
+  const handleExportAllToWord = async () => {
+    setIsExportingAll(true);
+
+    try {
+      if (!firstTimers || firstTimers.length === 0) {
+        toast({
+          title: "No first-timers found",
+          description: "There are no first-timers to export",
+          variant: "destructive",
+        });
+        setIsExportingAll(false);
+        return;
+      }
+
+      // Use all first-timers for export
+      await generateAllFirstTimersDoc(firstTimers);
+
+      toast({
+        title: "Export successful",
+        description: `Exported ${firstTimers.length} first-timers to Word document`,
+      });
+    } catch (error) {
+      toast({
+        title: "Export failed",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to export all first-timers",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExportingAll(false);
     }
   };
 
@@ -649,45 +687,78 @@ const FirstTimers = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="service-day" className="whitespace-nowrap">
-                Service Day:
-              </Label>
-              <Select
-                value={exportServiceDay}
-                onValueChange={(value) =>
-                  setExportServiceDay(value as ServiceDay)
-                }
+          <div className="space-y-4">
+            {/* Specific Service Export */}
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="service-day" className="whitespace-nowrap">
+                  Service Day:
+                </Label>
+                <Select
+                  value={exportServiceDay}
+                  onValueChange={(value) =>
+                    setExportServiceDay(value as ServiceDay)
+                  }
+                >
+                  <SelectTrigger id="service-day" className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tuesday">
+                      Tuesday (Bible Study)
+                    </SelectItem>
+                    <SelectItem value="thursday">
+                      Thursday (Revival Hour)
+                    </SelectItem>
+                    <SelectItem value="sunday">
+                      Sunday (Sunday Service)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                onClick={handleExportToWord}
+                disabled={isExporting}
+                className="w-full sm:w-auto"
               >
-                <SelectTrigger id="service-day" className="w-[180px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="tuesday">Tuesday (Bible Study)</SelectItem>
-                  <SelectItem value="thursday">
-                    Thursday (Revival Hour)
-                  </SelectItem>
-                  <SelectItem value="sunday">
-                    Sunday (Sunday Service)
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                <FileDown className="h-4 w-4 mr-2" />
+                {isExporting ? "Exporting..." : "Export to Word"}
+              </Button>
             </div>
-            <Button
-              onClick={handleExportToWord}
-              disabled={isExporting}
-              className="w-full sm:w-auto"
-            >
-              <FileDown className="h-4 w-4 mr-2" />
-              {isExporting ? "Exporting..." : "Export to Word"}
-            </Button>
+            <p className="text-xs text-muted-foreground">
+              Exports first-timers registered on the most recent{" "}
+              {getServiceTypeName(exportServiceDay)} (
+              {format(
+                getMostRecentServiceDate(exportServiceDay),
+                "MMM d, yyyy",
+              )}
+              )
+            </p>
+
+            {/* All First-Timers Export */}
+            <div className="border-t pt-4">
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                <Label className="whitespace-nowrap font-medium">
+                  Export All:
+                </Label>
+                <Button
+                  onClick={handleExportAllToWord}
+                  disabled={isExportingAll}
+                  variant="default"
+                  className="w-full sm:w-auto"
+                >
+                  <FileDown className="h-4 w-4 mr-2" />
+                  {isExportingAll
+                    ? "Exporting..."
+                    : "Download All First-Timers Report"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Exports comprehensive report of all {firstTimers?.length || 0}{" "}
+                first-timers in the system
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Exports first-timers registered on the most recent{" "}
-            {getServiceTypeName(exportServiceDay)} (
-            {format(getMostRecentServiceDate(exportServiceDay), "MMM d, yyyy")})
-          </p>
         </CardContent>
       </Card>
 
@@ -793,7 +864,7 @@ const FirstTimers = () => {
                             SMS sent{" "}
                             {formatDistanceToNow(
                               new Date(member.last_sms_sent_at),
-                              { addSuffix: true }
+                              { addSuffix: true },
                             )}
                           </p>
                         </div>
