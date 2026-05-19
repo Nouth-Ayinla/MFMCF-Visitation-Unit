@@ -228,9 +228,19 @@ const Members = () => {
     }
 
     if (levelFilter !== "all") {
-      filtered = filtered.filter(
-        (member) => member.levels?.level_number === levelFilter,
-      );
+      filtered = filtered.filter((member) => {
+        const memberLevel = member.levels?.level_number;
+
+        if (levelFilter === "PDS/UABS") {
+          return (
+            memberLevel === "PDS" ||
+            memberLevel === "UABS" ||
+            memberLevel === "PDS/UABS"
+          );
+        }
+
+        return memberLevel === levelFilter;
+      });
     }
 
     if (memberTypeFilter !== "all") {
@@ -438,6 +448,7 @@ const Members = () => {
                     <SelectItem value="300">300 Level</SelectItem>
                     <SelectItem value="400">400 Level</SelectItem>
                     <SelectItem value="500">500 Level</SelectItem>
+                    <SelectItem value="PDS/UABS">PDS/UABS</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select
