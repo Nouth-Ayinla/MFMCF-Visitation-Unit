@@ -74,6 +74,7 @@ const Members = () => {
   const [filteredData, setFilteredData] = useState<Member[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [levelFilter, setLevelFilter] = useState("all");
+  const [locationFilter, setLocationFilter] = useState("all");
   const [memberTypeFilter, setMemberTypeFilter] = useState("all");
   const [genderFilter, setGenderFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
@@ -89,6 +90,7 @@ const Members = () => {
   const [whatsappMessage, setWhatsappMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [sentCount, setSentCount] = useState(0);
+  const [locations, setLocations] = useState<string[]>([]);
 
   const toggleSelectMember = (id: string) => {
     setSelectedMemberIds((prev) => {
@@ -182,35 +184,18 @@ const Members = () => {
   }, [user]);
 
   useEffect(() => {
-    filterMembers();
-  }, [searchTerm, levelFilter, memberTypeFilter, genderFilter, members]);
+    const uniqueLocations = Array.from(
+      new Set(
+        members
+          .map((member) => member.address?.trim())
+          .filter((address): address is string => Boolean(address)),
+      ),
+    ).sort((a, b) => a.localeCompare(b));
 
-  const loadMembers = async () => {
-    setIsLoading(true);
-    const { data, error } = await supabase
-      .from("members")
-      .select(
-        `
-        *,
-        departments (id, name),
-        levels (id, level_number)
-      `,
-      )
-      .order("registered_at", { ascending: false });
+    setLocations(uniqueLocations);
+  }, [members]);
 
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load members",
-        variant: "destructive",
-      });
-    } else {
-      setMembers(data || []);
-    }
-    setIsLoading(false);
-  };
-
-  const filterMembers = () => {
+  useEffect(() => {
     let filtered = [...members];
 
     if (searchTerm) {
@@ -243,6 +228,12 @@ const Members = () => {
       });
     }
 
+    if (locationFilter !== "all") {
+      filtered = filtered.filter(
+        (member) => member.address?.trim() === locationFilter,
+      );
+    }
+
     if (memberTypeFilter !== "all") {
       filtered = filtered.filter((member) =>
         memberTypeFilter === "first-timer"
@@ -257,7 +248,6 @@ const Members = () => {
       );
     }
 
-    // Sort by level descending (500 first), UABS/non-numeric/no-level members at the end
     filtered.sort((a, b) => {
       const lvlA = parseInt(a.levels?.level_number || "", 10);
       const lvlB = parseInt(b.levels?.level_number || "", 10);
@@ -270,6 +260,31 @@ const Members = () => {
     });
 
     setFilteredData(filtered);
+  }, [searchTerm, levelFilter, locationFilter, memberTypeFilter, genderFilter, members]);
+
+  const loadMembers = async () => {
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from("members")
+      .select(
+        `
+        *,
+        departments (id, name),
+        levels (id, level_number)
+      `,
+      )
+      .order("registered_at", { ascending: false });
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load members",
+        variant: "destructive",
+      });
+    } else {
+      setMembers(data || []);
+    }
+    setIsLoading(false);
   };
 
   const handlePromoteToMember = async (memberId: string) => {
@@ -449,6 +464,19 @@ const Members = () => {
                     <SelectItem value="400">400 Level</SelectItem>
                     <SelectItem value="500">500 Level</SelectItem>
                     <SelectItem value="PDS/UABS">PDS/UABS</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={locationFilter} onValueChange={setLocationFilter}>
+                  <SelectTrigger className="text-sm sm:text-base">
+                    <SelectValue placeholder="Filter by Location" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="all">All Locations</SelectItem>
+                    {locations.map((location) => (
+                      <SelectItem key={location} value={location}>
+                        {location}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Select

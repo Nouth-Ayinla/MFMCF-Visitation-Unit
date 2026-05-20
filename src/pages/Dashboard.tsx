@@ -42,6 +42,13 @@ import {
 } from "@/components/ui/carousel";
 import Autoplay from "embla-carousel-autoplay";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
@@ -57,6 +64,11 @@ type ServiceType = Database["public"]["Enums"]["service_type"];
 interface LevelOption {
   id: string;
   level_number: string;
+}
+
+interface LocationOption {
+  value: string;
+  label: string;
 }
 
 interface MemberForExtract {
@@ -165,7 +177,9 @@ const Dashboard = () => {
   >([]);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [levels, setLevels] = useState<LevelOption[]>([]);
+  const [locations, setLocations] = useState<LocationOption[]>([]);
   const [selectedLevelId, setSelectedLevelId] = useState("");
+  const [selectedLocation, setSelectedLocation] = useState("all");
   const [selectedExtractMonth, setSelectedExtractMonth] = useState(
     format(new Date(), "yyyy-MM"),
   );
@@ -183,6 +197,7 @@ const Dashboard = () => {
       loadDashboardData();
       if (isAdmin()) {
         loadLevelsForExtract();
+        loadLocationsForExtract();
       }
     }
   }, [user]);
@@ -217,6 +232,38 @@ const Dashboard = () => {
 
     if (!selectedLevelId && sortedLevels.length > 0) {
       setSelectedLevelId(sortedLevels[0].id);
+    }
+  };
+
+  const loadLocationsForExtract = async () => {
+    const { data, error } = await supabase
+      .from("members")
+      .select("address")
+      .not("address", "is", null);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load locations for attendance extraction",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const uniqueLocations = Array.from(
+      new Set(
+        (data || [])
+          .map((member) => member.address?.trim())
+          .filter((address): address is string => Boolean(address)),
+      ),
+    )
+      .sort((a, b) => a.localeCompare(b))
+      .map((address) => ({ value: address, label: address }));
+
+    setLocations(uniqueLocations);
+
+    if (!selectedLocation && uniqueLocations.length > 0) {
+      setSelectedLocation("all");
     }
   };
 
@@ -267,16 +314,21 @@ const Dashboard = () => {
 
       const members = (memberData || []) as MemberForExtract[];
 
-      if (members.length === 0) {
+      const filteredMembers =
+        selectedLocation === "all"
+          ? members
+          : members.filter((member) => member.address === selectedLocation);
+
+      if (filteredMembers.length === 0) {
         toast({
           title: "No Members",
-          description: "No members found for the selected level.",
+          description: "No members found for the selected level and location.",
           variant: "destructive",
         });
         return;
       }
 
-      const memberIds = members.map((member) => member.id);
+      const memberIds = filteredMembers.map((member) => member.id);
 
       const { data: attendanceData, error: attendanceError } = await supabase
         .from("attendance")
@@ -312,7 +364,7 @@ const Dashboard = () => {
           `${selectedLevel?.level_number || "Selected Level"} LEVEL ATTENDANCE - ${format(new Date(`${selectedExtractMonth}-01`), "MMMM yyyy")} `,
         ],
         headerRow,
-        ...members.map((member, index) => {
+        ...filteredMembers.map((member, index) => {
           const attendanceColumns = slots.map((slot) => {
             const key = `${member.id}|${slot.date}|${slot.serviceType}`;
             return attendanceSet.has(key) ? "P" : "";
@@ -339,7 +391,7 @@ const Dashboard = () => {
       const url = window.URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `${(selectedLevel?.level_number || "level").replace(/\s+/g, "_")}_${selectedExtractMonth}_attendance.csv`;
+      anchor.download = `${(selectedLevel?.level_number || "level").replace(/\s+/g, "_")}_${selectedLocation === "all" ? "all_locations" : selectedLocation.replace(/\s+/g, "_")}_${selectedExtractMonth}_attendance.csv`;
       anchor.click();
       window.URL.revokeObjectURL(url);
 
@@ -762,7 +814,28 @@ const Dashboard = () => {
                 </TabsList>
               </Tabs>
 
-              <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div>
+                  <label
+                    htmlFor="extract_location"
+                    className="text-sm text-muted-foreground"
+                  >
+                    Location
+                  </label>
+                  <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                    <SelectTrigger id="extract_location" className="mt-1">
+                      <SelectValue placeholder="All locations" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Locations</SelectItem>
+                      {locations.map((location) => (
+                        <SelectItem key={location.value} value={location.value}>
+                          {location.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="w-full sm:w-[220px]">
                   <label
                     htmlFor="extract_month"
@@ -778,20 +851,22 @@ const Dashboard = () => {
                     className="mt-1"
                   />
                 </div>
-                <Button
-                  onClick={handleExtractAttendanceByLevel}
-                  disabled={isExtracting || !selectedLevelId}
-                  variant="outline"
-                  className="w-full sm:w-auto"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  {isExtracting ? "Extracting..." : "Extract Attendance"}
-                </Button>
+                <div className="flex items-end">
+                  <Button
+                    onClick={handleExtractAttendanceByLevel}
+                    disabled={isExtracting || !selectedLevelId}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    {isExtracting ? "Extracting..." : "Extract Attendance"}
+                  </Button>
+                </div>
               </div>
 
               <p className="text-xs sm:text-sm text-muted-foreground">
-                Export format: S/N, NAME, PHONE NUMBER, LOCATION, DEPARTMENT,
-                then repeated SUN/TUES/THUR attendance columns.
+                Pick a location from the dropdown to extract only members in
+                that location.
               </p>
             </CardContent>
           </Card>
