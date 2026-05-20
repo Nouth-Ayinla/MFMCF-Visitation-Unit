@@ -63,6 +63,7 @@ interface MemberForExtract {
   id: string;
   full_name: string;
   phone_number: string;
+  address: string | null;
   departments?: {
     name: string;
   } | null;
@@ -255,7 +256,7 @@ const Dashboard = () => {
 
       const { data: memberData, error: memberError } = await supabase
         .from("members")
-        .select("id, full_name, phone_number, departments(name)")
+        .select("id, full_name, phone_number, address, departments(name)")
         .eq("is_first_timer", false)
         .eq("level_id", selectedLevelId)
         .order("full_name", { ascending: true });
@@ -301,6 +302,7 @@ const Dashboard = () => {
         "S/N",
         "NAME",
         "PHONE NUMBER",
+        "LOCATION",
         "DEPARTMENT",
         ...slots.map((slot) => slot.label),
       ];
@@ -320,6 +322,7 @@ const Dashboard = () => {
             String(index + 1),
             member.full_name,
             member.phone_number,
+            member.address || "",
             member.departments?.name || "",
             ...attendanceColumns,
           ];
@@ -787,8 +790,8 @@ const Dashboard = () => {
               </div>
 
               <p className="text-xs sm:text-sm text-muted-foreground">
-                Export format: S/N, NAME, PHONE NUMBER, DEPARTMENT, then
-                repeated SUN/TUES/THUR attendance columns.
+                Export format: S/N, NAME, PHONE NUMBER, LOCATION, DEPARTMENT,
+                then repeated SUN/TUES/THUR attendance columns.
               </p>
             </CardContent>
           </Card>
