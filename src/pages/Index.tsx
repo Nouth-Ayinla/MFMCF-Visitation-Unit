@@ -14,8 +14,9 @@ import heroBackground from "@/assets/fellowship-background.jpg";
 import mfmLogo from "@/assets/mfm-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
-import { User, GraduationCap } from "lucide-react";
+import { User, GraduationCap, ArrowRight } from "lucide-react";
 import { SuccessDialog } from "@/components/SuccessDialog";
+import { Link } from "react-router-dom";
 
 interface Department {
   id: string;
@@ -219,6 +220,22 @@ const Index = () => {
             {" "}
             First Timer Registration
           </p>
+        </div>
+      </div>
+
+      {/* Attendance Switcher Banner */}
+      <div className="max-w-md sm:max-w-3xl mx-auto px-4 pt-6">
+        <div className="bg-[#8920AC]/5 border border-[#8920AC]/15 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-in fade-in duration-300">
+          <div className="text-center sm:text-left">
+            <h3 className="font-bold text-[#8920AC] text-base">Already Registered?</h3>
+            <p className="text-sm text-gray-600 mt-0.5">Click below to mark your attendance for today's service.</p>
+          </div>
+          <Link to="/mark-attendance">
+            <Button type="button" className="bg-[#8920AC] hover:bg-[#7a1c98] text-white rounded-full px-6 font-semibold shadow-md shrink-0 flex items-center gap-2">
+              Mark Attendance
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
         </div>
       </div>
 

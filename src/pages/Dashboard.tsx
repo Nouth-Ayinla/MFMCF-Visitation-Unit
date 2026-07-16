@@ -822,7 +822,10 @@ const Dashboard = () => {
                   >
                     Location
                   </label>
-                  <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                  <Select
+                    value={selectedLocation}
+                    onValueChange={setSelectedLocation}
+                  >
                     <SelectTrigger id="extract_location" className="mt-1">
                       <SelectValue placeholder="All locations" />
                     </SelectTrigger>

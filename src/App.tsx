@@ -10,6 +10,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import MemberDataCollection from "./pages/MemberDataCollection";
+import PublicAttendance from "./pages/PublicAttendance";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
 import Attendance from "./pages/Attendance";
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/pending-approval" element={<PendingApproval />} />
             <Route path="/members" element={<MemberDataCollection />} />
+            <Route path="/mark-attendance" element={<PublicAttendance />} />
             <Route
               path="/dashboard"
               element={

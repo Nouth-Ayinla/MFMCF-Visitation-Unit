@@ -260,7 +260,14 @@ const Members = () => {
     });
 
     setFilteredData(filtered);
-  }, [searchTerm, levelFilter, locationFilter, memberTypeFilter, genderFilter, members]);
+  }, [
+    searchTerm,
+    levelFilter,
+    locationFilter,
+    memberTypeFilter,
+    genderFilter,
+    members,
+  ]);
 
   const loadMembers = async () => {
     setIsLoading(true);
@@ -466,7 +473,10 @@ const Members = () => {
                     <SelectItem value="PDS/UABS">PDS/UABS</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={locationFilter} onValueChange={setLocationFilter}>
+                <Select
+                  value={locationFilter}
+                  onValueChange={setLocationFilter}
+                >
                   <SelectTrigger className="text-sm sm:text-base">
                     <SelectValue placeholder="Filter by Location" />
                   </SelectTrigger>
